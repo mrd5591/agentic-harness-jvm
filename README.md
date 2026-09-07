@@ -10,6 +10,10 @@ mvn verify                # every gate: coverage ratchet, style, static analysis
 mvn -Pmutation verify     # adds mutation testing
 ```
 
+Companion to [agent-eval-mcp](https://github.com/mrd5591/agent-eval-mcp), which measures the agent's
+own behaviour (loops, tool failure rates, cost per change) from its session transcripts. This repo
+gates the code an agent writes; that one gates how it works.
+
 Both are green on a clean checkout. Numbers in [METRICS.md](METRICS.md), all reproducible with the
 commands printed there.
 
