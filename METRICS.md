@@ -22,14 +22,16 @@ Measured 2026-09-07. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 | Checkstyle violations | 0 | reported per module during `validate` |
 | SpotBugs findings | 0 | max effort, medium threshold, FindSecBugs included, at `verify` |
 | Architecture rules | 7, adopted by 2 services via 2 tests each | `WireContractRules` (4) + `LayeringRules` (3) |
-| `mvn verify` | ~18 s | wall clock, warm local repository |
-| `mvn -Pmutation verify` | ~35 s | same |
+| `mvn clean verify` | 19.8 s | wall clock, warm local repository |
+| `mvn -Pmutation verify` | 36.0 s | same tree |
+| `mvn clean -Pmutation verify` | 38.1 s | cold |
 
-Reproduce:
+Reproduce. All three were run consecutively on a clean tree and all three reported BUILD SUCCESS:
 
 ```bash
-mvn -B verify                # expect BUILD SUCCESS
-mvn -B -Pmutation verify     # expect BUILD SUCCESS, "Killed 33/11/9 (100%)"
+mvn -B clean verify                # BUILD SUCCESS
+mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 33/11/9 (100%)"
+mvn -B clean -Pmutation verify     # BUILD SUCCESS, same mutation counts
 ```
 
 To see the gates actually bite, break something and rerun: delete an assertion, return
