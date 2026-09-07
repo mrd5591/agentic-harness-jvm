@@ -1,0 +1,36 @@
+name: owasp-dependency-check
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+# Dependency risk arrives on the calendar, not on your commit schedule. Running
+# this weekly rather than per-PR keeps the signal without making every pull
+# request wait on an NVD download.
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: OWASP dependency-check
+        run: >
+          mvn -B org.owasp:dependency-check-maven:check
+          -DfailBuildOnCVSS=7
+          -DassemblyAnalyzerEnabled=false
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: '**/target/dependency-check-report.html'
+          retention-days: 30

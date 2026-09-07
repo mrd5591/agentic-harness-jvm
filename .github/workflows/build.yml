@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      # Every gate runs here. There is no "warn only" mode: if this job is green
+      # the change is mergeable, and if it is red it is not. That property is the
+      # whole point, because it is what lets an agent's output be trusted without
+      # a human reading every line.
+      - name: Verify (coverage ratchet, checkstyle, spotbugs, architecture rules)
+        run: mvn -B verify
+
+      - name: Mutation testing
+        run: mvn -B -Pmutation verify
+
+      - name: Publish reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-reports
+          path: |
+            **/target/site/jacoco/
+            **/target/pit-reports/
+          retention-days: 14

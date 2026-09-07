@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Every entry here is a deliberate, justified exemption. Adding to this file is a
+  review event: it is how a gate gets weakened, so it should be as visible as a
+  production change. Keep the reason inline.
+-->
+<FindBugsFilter>
+  <!-- Test sources are analysed separately and generate high-noise findings
+       (unread fields on fixtures, exposed internals in builders). -->
+  <Match>
+    <Source name="~.*[\\/]src[\\/]test[\\/].*"/>
+  </Match>
+
+  <!-- ArchUnit rule classes intentionally expose static ArchRule constants so
+       that adopting services can reference individual rules. -->
+  <Match>
+    <Class name="~io\.harness\.arch\..*"/>
+    <Bug pattern="MS_EXPOSE_REP"/>
+  </Match>
+</FindBugsFilter>
