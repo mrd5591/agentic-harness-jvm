@@ -18,8 +18,11 @@
   </module>
 
   <module name="TreeWalker">
-    <!-- An agent that cannot make a test pass will sometimes delete the assertion
-         and leave an empty block. These catch that. -->
+    <!-- Two shortcuts that make a failure disappear without anything visible
+         changing: EmptyCatchBlock catches an exception swallowed by a catch block
+         with no body and no explaining comment; EmptyStatement catches the stray
+         `;` left where a statement used to be. Neither of these, and nothing else
+         in this file, catches a deleted assertion. -->
     <module name="EmptyCatchBlock"/>
     <module name="EmptyStatement"/>
 
