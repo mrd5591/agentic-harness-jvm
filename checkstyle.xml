@@ -20,9 +20,7 @@
   <module name="TreeWalker">
     <!-- An agent that cannot make a test pass will sometimes delete the assertion
          and leave an empty block. These catch that. -->
-    <module name="EmptyCatchBlock">
-      <property name="exceptionVariableName" value="expected|ignored"/>
-    </module>
+    <module name="EmptyCatchBlock"/>
     <module name="EmptyStatement"/>
 
     <!-- Silent failure modes. -->
