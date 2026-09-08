@@ -5,7 +5,7 @@ second describes the private platform the harness was extracted from, which you 
 every figure is given with the exact command that produced it and with what the command actually
 counts.
 
-Measured 2026-09-07. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
+Measured 2026-09-08. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 
 ---
 
@@ -14,23 +14,23 @@ Measured 2026-09-07. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 | Metric | Value | How |
 |---|---|---|
 | Modules | 3 | `harness-rules`, `sample-order-service`, `sample-ledger-service` |
-| Production lines | 728 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
-| Test lines | 867 | same, `src/test` |
-| Test methods | 51 | Surefire totals: 26 + 10 + 15 |
+| Production lines | 515 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
+| Test lines | 1,183 | same, `src/test` |
+| Test methods | 72 | Surefire totals: 39 + 10 + 23 |
 | Line coverage | 100%, enforced per package | `mvn verify`, JaCoCo `check` with `COVEREDRATIO` floor 1.00 and `haltOnFailure` |
-| Mutation score | 100% (53/53 killed) | `mvn -Pmutation verify`; PIT reports 33 + 11 + 9 mutations, all killed, test strength 100% |
+| Mutation score | 100% (63/63 killed) | `mvn -Pmutation verify`; PIT reports 42 + 11 + 10 mutations, all killed, test strength 100% |
 | Checkstyle violations | 0 | reported per module during `validate` |
 | SpotBugs findings | 0 | max effort, medium threshold, FindSecBugs included, at `verify` |
-| Architecture rules | 7, adopted by 2 services via 2 tests each | `WireContractRules` (4) + `LayeringRules` (3) |
-| `mvn clean verify` | 19.8 s | wall clock, warm local repository |
-| `mvn -Pmutation verify` | 36.0 s | same tree |
-| `mvn clean -Pmutation verify` | 38.1 s | cold |
+| Architecture rules | 7, adopted by 2 services via 2 tests and one base-package string each | `WireContractRules` (4) + `LayeringRules` (3) |
+| `mvn clean verify` | 23.9 s | wall clock, warm local repository |
+| `mvn -Pmutation verify` | 38.1 s | same tree |
+| `mvn clean -Pmutation verify` | 38.5 s | cold |
 
 Reproduce. All three were run consecutively on a clean tree and all three reported BUILD SUCCESS:
 
 ```bash
 mvn -B clean verify                # BUILD SUCCESS
-mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 33/11/9 (100%)"
+mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 42/11/10 (100%)"
 mvn -B clean -Pmutation verify     # BUILD SUCCESS, same mutation counts
 ```
 
