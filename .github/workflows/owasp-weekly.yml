@@ -23,9 +23,15 @@ jobs:
       # Version pinned in the GAV, matching dependency-check.version in the
       # parent POM. Unpinned, this resolves the latest release from Central on
       # every run and a new major can reinterpret failBuildOnCVSS.
+      # `package` first, in the same reactor session. sample-ledger-service
+      # depends on sample-order-service, and a bare plugin goal builds nothing,
+      # so the inter-module SNAPSHOT cannot resolve and the ledger module fails
+      # in 12ms before it is ever scanned. That was invisible for as long as an
+      # earlier module failed on a CVE first: the scan had never once run to
+      # completion.
       - name: OWASP dependency-check
         run: >
-          mvn -B org.owasp:dependency-check-maven:13.0.0:check
+          mvn -B package org.owasp:dependency-check-maven:13.0.0:check
           -DfailBuildOnCVSS=7
           -DassemblyAnalyzerEnabled=false
           -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
