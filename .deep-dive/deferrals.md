@@ -78,30 +78,6 @@ everything below is intake from that pass. Later passes drain to a net intake of
   section, so nobody reads "100% mutation score" as covering record invariants. **Applies at run
   count 3.**
 
-### 5. `main` has no branch protection, so a red build blocks nothing
-- **Severity** High · **Class** `step` · **Effort** `small` · **Surfaced** 2026-09-08 · **Run count** 1
-- Verified 2026-09-08: `gh api repos/mrd5591/agentic-harness-jvm/branches/main/protection` → 404
-  "Branch not protected"; `.../rulesets` → `[]`. Anyone, including an agent holding a token, can
-  push a red build straight to `main`. Every other gate's authority rests on this one setting.
-- The 2026-09-08 pass corrected `build.yml`'s comment, which had asserted the opposite ("if this job
-  is green the change is mergeable, and if it is red it is not"). The comment is now true; the
-  setting is still absent.
-- **Defer reason**: blocked on external input. This is a repository setting, not a file — a review
-  pass should not be changing a public repo's protection rules.
-- **Next action** (owner): make the `gates` check required on `main`.
-
-### 6. The OWASP gate has never produced a signal, and will run unauthenticated
-- **Severity** Low · **Class** `hours` · **Effort** `small` · **Surfaced** 2026-09-08 · **Run count** 1
-- `owasp-weekly.yml` is `cron: '0 7 * * 1'` (Monday 07:00 UTC). The repo was created 2026-09-07
-  23:39Z, so the first slot had already passed; the first real run is 2026-09-14. **This is not a
-  defect** — a note only, so a later pass does not re-report "gate 8 has never run" as a finding.
-- The real item: `gh api .../actions/secrets` → `{"total_count":0}`, so `NVD_API_KEY` is unset and
-  the scan will fall back to unauthenticated NVD access, which is heavily rate-limited and can take
-  20+ minutes or fail outright. A scheduled workflow failing is also nearly silent.
-- **Defer reason**: blocked on external input — needs an NVD API key from the owner.
-- **Next action** (owner): request a key at https://nvd.nist.gov/developers/request-an-api-key and
-  add it as the `NVD_API_KEY` repository secret. Then confirm the 2026-09-14 run went green.
-
 ### 7. SpotBugs runs at max effort but a medium threshold, discarding the Low band
 - **Severity** Low · **Class** `hours` · **Effort** `small` · **Surfaced** 2026-09-08 · **Run count** 1
 - `<effort>Max</effort>` widens the analysis and `<threshold>Medium</threshold>` then throws away the
