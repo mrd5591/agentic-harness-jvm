@@ -5,7 +5,7 @@ second describes the private platform the harness was extracted from, which you 
 every figure is given with the exact command that produced it and with what the command actually
 counts.
 
-Measured 2026-09-08. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
+Re-measured 2026-09-08 after the debt pass. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 
 ---
 
@@ -14,18 +14,18 @@ Measured 2026-09-08. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 | Metric | Value | How |
 |---|---|---|
 | Modules | 3 | `harness-rules`, `sample-order-service`, `sample-ledger-service` |
-| Production lines | 583 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
-| Test lines | 1,361 | same, `src/test` |
-| Test methods | 77 | `grep -rho '@Test\b\|@ParameterizedTest\b' --include=*.java */src/test \| wc -l`: 44 + 10 + 23 |
-| Test executions | 83 | Surefire totals: 44 + 10 + 29. Higher than the method count because one `@ParameterizedTest` carries seven values |
+| Production lines | 662 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
+| Test lines | 1,719 | same, `src/test` |
+| Test methods | 87 | `grep -rho '@Test\b\|@ParameterizedTest\b' --include=*.java */src/test \| wc -l`: 54 + 10 + 23 |
+| Test executions | 93 | Surefire totals: 54 + 10 + 29. Higher than the method count because one `@ParameterizedTest` carries seven values |
 | Line coverage | 100%, enforced per package | `mvn verify`, JaCoCo `check` with `COVEREDRATIO` floor 1.00 and `haltOnFailure` |
-| Mutation score | 100% (66/66 killed) | `mvn -Pmutation verify`; PIT reports 45 + 11 + 10 mutations, all killed, test strength 100% |
+| Mutation score | 100% (75/75 killed) | `mvn -Pmutation verify`; PIT reports 52 + 11 + 12 mutations, all killed, test strength 100%. Records contribute no mutants at all under PIT's `+frecord` filter - see README, "What 100% here does not cover" |
 | Checkstyle violations | 0 | reported per module during `validate` |
 | SpotBugs findings | 0 | max effort, medium threshold, FindSecBugs included, at `verify` |
-| Architecture rules | 8, adopted by 2 services via 2 tests and one base-package string each | `WireContractRules` (5) + `LayeringRules` (3) |
-| `mvn clean verify` | 20.9 s | wall clock, warm local repository |
-| `mvn -Pmutation verify` | 38.3 s | same tree |
-| `mvn clean -Pmutation verify` | 42.2 s | cold |
+| Architecture rules | 9, adopted by 2 services via 2 tests and one base-package string each, with adoption itself enforced by `ModuleAdoptionTest` | `WireContractRules` (6) + `LayeringRules` (3) |
+| `mvn clean verify` | 22.0 s | wall clock, warm local repository |
+| `mvn -Pmutation verify` | 47.5 s | same tree |
+| `mvn clean -Pmutation verify` | 50.5 s | cold |
 
 The method count and the execution count are reported separately on purpose. They differ here by
 six, which is small enough to be tempting to ignore, and ignoring it is exactly the conflation the
@@ -36,7 +36,7 @@ Reproduce. All three were run consecutively on a clean tree and all three report
 
 ```bash
 mvn -B clean verify                # BUILD SUCCESS
-mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 45/11/10 (100%)"
+mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 52/11/12 (100%)"
 mvn -B clean -Pmutation verify     # BUILD SUCCESS, same mutation counts
 ```
 
@@ -50,11 +50,19 @@ is red for a different reason:
 - Add a `public static class` inside a controller — the nested-type rule, same test.
 - Remove one `check()` call from either `checkAll` — red only because of the delegation tests that
   mutation testing demanded.
+- Delete a service's `ArchitectureTest.java` entirely — red via `ModuleAdoptionTest`, which reads
+  the reactor's own `<module>` list. Executed, not reasoned: removing
+  `sample-ledger-service`'s test produces `these modules have no ArchitectureTest, so they inherit
+  the sensors but none of the architecture rules and pass while checking nothing:
+  [sample-ledger-service]`. Before this existed, that deletion was **green**.
+- Run `mvn -DskipTests verify` or `mvn -Dmaven.test.skip=true verify` — the tests run anyway. Both
+  were BUILD SUCCESS with the coverage gate silently absent before; JaCoCo's `check` skips rather
+  than fails when there is no execution data to read.
 
 **"Delete an assertion" is not on that list, and the reason is worth more than the list.** It was,
 until we tried it: deleting `assertThat(response.sku()).isEqualTo("SKU-3")` from
 `OrderControllerTest` leaves `mvn -B -Pmutation verify` fully green — BUILD SUCCESS, 100% coverage,
-66/66 mutants still killed. The assertion is redundant, because `OrderServiceTest` already pins that
+75/75 mutants still killed. The assertion is redundant, because `OrderServiceTest` already pins that
 projection, and no gate can distinguish a redundant assertion from a load-bearing one. Deleting a
 *load-bearing* assertion does turn the build red, and that is what the mutation score buys. Stated
 precisely: mutation testing tells you which assertions are load-bearing. It does not tell you that

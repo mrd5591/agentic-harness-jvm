@@ -153,6 +153,36 @@
     </pluginManagement>
 
     <plugins>
+      <!-- Gate 0 (sensor): the tests themselves cannot be skipped.
+
+           The 2026-09-08 pass closed -Djacoco.skip, -Dcheckstyle.skip,
+           -Dcheckstyle.skipExec, -Dspotbugs.skip and -DskipPitest by writing an
+           explicit <skip>false</skip> into each sensor. -DskipTests survived, and
+           it was the widest hole of the lot: with no tests run, JaCoCo finds no
+           execution data and its check goal *skips rather than fails*, so
+           `mvn -DskipTests verify` was BUILD SUCCESS with the coverage gate
+           silently absent. A .mvn/maven.config carrying that flag would apply in
+           CI too and appear in no diff anyone reads - and .mvn/ already exists
+           here.
+
+           Three properties, because they are three different routes to the same
+           place: skipTests compiles but does not run, maven.test.skip does not
+           even compile, and testFailureIgnore runs them and ignores the verdict.
+
+           The cost is real and accepted: `mvn -DskipTests package` no longer
+           works as a way to build a jar quickly. This repo's whole claim is that
+           its gates cannot be routed around, and that convenience is worth less
+           than the claim. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <skipTests>false</skipTests>
+          <skip>false</skip>
+          <testFailureIgnore>false</testFailureIgnore>
+        </configuration>
+      </plugin>
+
       <!-- Gate 1 (sensor): line coverage, enforced per package, halts the build. -->
       <plugin>
         <groupId>org.jacoco</groupId>

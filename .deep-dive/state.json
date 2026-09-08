@@ -1,15 +1,14 @@
 {
   "lastRunCommit": "5ef0f9360029f8d8122b7a29124c75d2369dfa91",
-  "lastRunTimestamp": "2026-09-08T15:05:34Z",
-  "mode": "full",
-  "filesAnalyzed": 40,
-  "findingsCount": 31,
+  "lastRunTimestamp": "2026-09-08T18:45:00Z",
+  "mode": "debt",
+  "filesAnalyzed": 10,
+  "findingsCount": 0,
   "coverageGaps": [
-    "rules-reviewer: did not sweep every predicate for false positives; redundant/unpinned analysis was not an exhaustive PIT-equivalence check; importService DO_NOT_INCLUDE_TESTS edge cases not reached.",
-    "gate-reviewer: scope holes only partially covered - JaCoCo/PIT/Checkstyle/SpotBugs scope reconciled against the tree, ArchUnit rule bodies not audited (out of its scope).",
-    "test-reviewer: reviewed tests only; all 'leaves the suite green' proofs are by reading, not execution - it ran no build.",
-    "docs-reviewer: the four 'break it and rerun' scenarios were reasoned, not executed, except the deleted-assertion one which the lead executed; Part 2 platform figures are uncheckable by design.",
-    "samples-reviewer: convention sweep did not read checkstyle.xml or the POMs; code-smell pass was heuristic."
+    "None for the build itself: every gate in this repo runs on this machine, and mvn -B clean verify and mvn -B clean -Pmutation verify were both executed green after each change.",
+    "CI-only gates (CodeQL, OWASP dependency-check) were not run locally, as before.",
+    "ModuleAdoptionTest was proven able to go red by deleting a service's ArchitectureTest and observing BUILD FAILURE; the -DskipTests hardening was proven by running the two skip flags and observing the tests execute anyway. Neither claim rests on reading.",
+    "The record/PIT blind spot is documented, not fixed: record invariants still generate zero mutants, so a future compact-constructor guard gets no scrutiny from the mutation gate."
   ],
-  "note": "First deep-dive pass on this repo. All five review agents delivered; no area went unreviewed. Review agents were strictly read-only, so every review claim is source-reading plus scripted derivation rather than observed behaviour; the lead and the three fix agents executed the gates."
+  "note": "Debt pass: all five open entries closed - three fixed, two ruled and moved to Accepted. Two of the entries stated a fix that does not work; both were probed rather than trusted, and the real mechanisms are recorded in resolved.md."
 }
