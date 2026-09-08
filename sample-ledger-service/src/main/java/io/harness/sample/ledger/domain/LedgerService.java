@@ -9,37 +9,21 @@ import java.util.List;
 /**
  * Turns an order event into a balanced posting.
  *
- * <p>This class exists to carry one invariant: a posting balances. Note the shape. The rule that
- * decides which accounts move is a strategy, and the balance check is applied to whatever that
- * strategy returns. An agent can rewrite the strategy however it likes and cannot get an unbalanced
- * posting past {@link #post}, because the check is on the value rather than on the code that
- * produced it.
- *
- * <p>That seam was not in the first draft. Mutation testing pointed out that deleting the balance
- * check entirely left every test green, because the only strategy in the codebase could not produce
- * an unbalanced result. A guard no test can trip is decoration. See README, "What mutation testing
- * found".
+ * <p>The strategy decides which accounts move; {@link #requireBalanced} checks the value it
+ * returned. Changing the strategy cannot produce an unbalanced posting.
  */
 public class LedgerService {
 
-  /** The account that receives the debit for a sale. */
   public static final String ACCOUNTS_RECEIVABLE = "accounts-receivable";
 
-  /** The account that receives the credit for a sale. */
   public static final String REVENUE = "revenue";
 
   private final EntryStrategy strategy;
 
-  /** Use the standard two-line sale posting. */
   public LedgerService() {
     this(LedgerService::saleEntries);
   }
 
-  /**
-   * Use a supplied posting strategy.
-   *
-   * @param strategy decides which accounts move and by how much
-   */
   public LedgerService(EntryStrategy strategy) {
     this.strategy = strategy;
   }
@@ -48,21 +32,10 @@ public class LedgerService {
   @FunctionalInterface
   public interface EntryStrategy {
 
-    /**
-     * Produce the lines for an event.
-     *
-     * @param event the source event
-     * @return the lines, which the caller will validate
-     */
     List<EntryResponse> entriesFor(OrderPlacedEvent event);
   }
 
-  /**
-   * The standard sale posting: receivable up, revenue up.
-   *
-   * @param event the source event
-   * @return two balanced lines
-   */
+  /** The standard sale posting: receivable up, revenue up. */
   public static List<EntryResponse> saleEntries(OrderPlacedEvent event) {
     return List.of(
         new EntryResponse(ACCOUNTS_RECEIVABLE, Side.DEBIT, event.totalCents()),
@@ -72,8 +45,6 @@ public class LedgerService {
   /**
    * Post an order to the book.
    *
-   * @param event the placed-order event
-   * @return the balanced posting
    * @throws IllegalArgumentException when the event amount is not positive
    * @throws IllegalStateException when the strategy produced entries that do not balance
    */
@@ -87,9 +58,8 @@ public class LedgerService {
   }
 
   /**
-   * The invariant, in one place, applied to the value rather than trusted to the caller.
+   * The invariant.
    *
-   * @param entries the lines to check
    * @throws IllegalStateException when debits do not equal credits
    */
   public static void requireBalanced(List<EntryResponse> entries) {

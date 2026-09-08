@@ -14,13 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/**
- * The invariant is tested as a property over many amounts, not as one example.
- *
- * <p>Example-based tests are what an agent writes when asked to make coverage go up. They pass
- * while asserting almost nothing. A property over a range is the cheapest available upgrade, and it
- * is what makes the mutation score survive.
- */
+/** The invariant is tested as a property over many amounts, not as one example. */
 class LedgerServiceTest {
 
   private final LedgerService ledger = new LedgerService();
@@ -71,8 +65,6 @@ class LedgerServiceTest {
     List<EntryResponse> unbalanced =
         List.of(new EntryResponse("a", Side.DEBIT, 100L), new EntryResponse("b", Side.CREDIT, 60L));
 
-    // The exact message matters. Asserting only that it contains "40" also passes when the
-    // arithmetic is inverted and the real net is -40, which is how a sign bug survives a suite.
     assertThatThrownBy(() -> LedgerService.requireBalanced(unbalanced))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("posting does not balance, net = 40");
@@ -84,8 +76,6 @@ class LedgerServiceTest {
     List<EntryResponse> bothDebits =
         List.of(new EntryResponse("a", Side.DEBIT, 100L), new EntryResponse("b", Side.DEBIT, 100L));
 
-    // Symmetric fixtures hide sign errors: with one debit and one credit, swapping the two still
-    // nets to zero. This case only balances if DEBIT and CREDIT are treated differently.
     assertThatThrownBy(() -> LedgerService.requireBalanced(bothDebits))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("posting does not balance, net = 200");

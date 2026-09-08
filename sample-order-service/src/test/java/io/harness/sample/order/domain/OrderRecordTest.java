@@ -5,13 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Covers the entity, including the no-arg constructor the persistence provider requires.
- *
- * <p>That constructor is the kind of line a 100% gate turns into a decision: either write this test
- * or restructure so the line does not exist. Writing the test is the honest option here, because
- * the constructor is genuinely required by the framework contract.
- */
+/** Covers the entity, including the no-arg constructor the persistence provider requires. */
 class OrderRecordTest {
 
   @Test

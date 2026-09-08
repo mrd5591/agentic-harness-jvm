@@ -10,13 +10,7 @@ import io.harness.arch.fixture.Fixtures;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * Proves each wire-contract rule fires on a violating fixture and stays quiet on a clean one.
- *
- * <p>The negative cases matter more than the positive ones. A rule that never fires is
- * indistinguishable from a rule that is broken, and the second kind is worse than no rule because
- * it buys false confidence.
- */
+/** Proves each wire-contract rule fires on a violating fixture and stays quiet on a clean one. */
 class WireContractRulesTest {
 
   private static final JavaClasses FIXTURES =
@@ -187,16 +181,6 @@ class WireContractRulesTest {
                     only(Fixtures.CleanController.class), "io.harness.arch.fixture.."))
         .doesNotThrowAnyException();
   }
-
-  // ---------------------------------------------------------------------
-  // Delegation tests.
-  //
-  // Each case below violates exactly one rule, so checkAll can only pass it
-  // by actually invoking that rule. Mutation testing is what demanded these:
-  // with only the aggregate tests above, deleting any single check() call
-  // from checkAll left the suite green, which means a service adopting the
-  // pack could silently lose a rule. See README, "What mutation testing found".
-  // ---------------------------------------------------------------------
 
   @Test
   @DisplayName("checkAll invokes the nested-class rule")

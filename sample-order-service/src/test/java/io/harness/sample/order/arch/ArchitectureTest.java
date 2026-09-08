@@ -6,14 +6,7 @@ import io.harness.arch.WireContractRules;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * The whole adoption cost of the rule packs, for one service.
- *
- * <p>Two tests. Copy this file into a new module, change the package string, and the new module is
- * held to exactly the same architecture as every other one. That is the property that matters when
- * services are being generated faster than anyone can review their structure: a rule written once
- * cannot be forgotten in module nineteen.
- */
+/** The whole adoption cost of the rule packs, for one service. */
 class ArchitectureTest {
 
   private static final JavaClasses CLASSES =

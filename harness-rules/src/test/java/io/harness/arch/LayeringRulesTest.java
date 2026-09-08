@@ -15,10 +15,6 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Exercises the layering pack against this module's own classes, which are clean by construction.
- *
- * <p>The violating cases for layering are covered in the sample services, where real packages named
- * {@code domain} and {@code api} exist. Here the job is to prove the rules load, run, and accept a
- * conforming codebase.
  */
 class LayeringRulesTest {
 
@@ -58,10 +54,6 @@ class LayeringRulesTest {
     assertThatCode(() -> LayeringRules.checkAll(OWN_CLASSES, "io.harness.(*).."))
         .doesNotThrowAnyException();
   }
-
-  // Each case below violates exactly one rule, so checkAll can only pass it by
-  // invoking that rule. Added because mutation testing showed that deleting an
-  // individual check() call from checkAll left the suite green.
 
   private static final String LAYERING_SLICES = "io.harness.arch.fixture.layering.(*)..";
 

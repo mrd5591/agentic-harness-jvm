@@ -14,67 +14,25 @@ import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition;
 
-/**
- * Rules that keep the wire contract from drifting.
- *
- * <p>Why these exist: in a multi-service codebase built with coding agents, the single most
- * expensive recurring failure is not a wrong algorithm. It is the same concept acquiring three
- * different shapes in three services, because an agent that cannot find the canonical type will
- * cheerfully declare a local one. Reviewers miss it, the merged API spec grows duplicate schemas,
- * and the frontend papers over the difference with null-coalescing chains. These rules make that
- * class of drift unmergeable.
- *
- * <p>This is an interface rather than a final class with a private constructor. A private
- * constructor is an uncovered line under a 100% line-coverage gate, and the usual workaround
- * (reflectively invoking it in a test) is a test that asserts nothing. An interface has no
- * constructor to cover. See README, "What the ratchet forced".
- *
- * <p>Adopt in a service with one test:
- *
- * <pre>{@code
- * class WireContractTest {
- *   @Test
- *   void enforceWireContract() {
- *     WireContractRules.checkAll(
- *         WireContractRules.importService("com.example.orders"), "com.example.contract");
- *   }
- * }
- * }</pre>
- */
+/** Rules that keep wire contracts from drifting across services. */
 public interface WireContractRules {
 
-  /**
-   * Fully-qualified annotation names, referenced as strings so this module stays dependency-light.
-   */
   String REST_CONTROLLER = "org.springframework.web.bind.annotation.RestController";
 
-  /** Spring's non-REST controller stereotype. */
   String CONTROLLER = "org.springframework.stereotype.Controller";
 
-  /** JPA entity annotation. */
   String JPA_ENTITY = "jakarta.persistence.Entity";
 
-  /** Suffixes that mark a type as part of the wire contract. */
   String WIRE_TYPE_NAME_PATTERN = ".*(Request|Response|Dto)";
 
-  /**
-   * Import a service's production classes plus the canonical contract package, excluding tests.
-   *
-   * @param packages packages to import; the first is conventionally the service root
-   * @return the imported classes
-   */
+  /** Import a service's production classes, excluding tests. */
   static JavaClasses importService(String... packages) {
     return new ClassFileImporter()
         .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
         .importPackages(packages);
   }
 
-  /**
-   * Public nested classes inside controllers shadow canonical contract types and produce duplicate
-   * schemas in a merged OpenAPI document.
-   *
-   * @return the rule
-   */
+  /** Public nested classes in controllers shadow canonical contract types. */
   static ArchRule noPublicNestedClassesInControllers() {
     return ArchRuleDefinition.noClasses()
         .that()
@@ -84,17 +42,11 @@ public interface WireContractRules {
         .haveNameMatching(".*")
         .because(
             "a public nested class inside a controller shadows the canonical contract type and "
-                + "creates a duplicate schema in the merged API spec; move it to the contract "
-                + "package or use the type that already exists")
+                + "creates a duplicate schema in the merged API spec")
         .allowEmptyShould(true);
   }
 
-  /**
-   * Any type named like a wire contract must live in the one package that defines wire contracts.
-   *
-   * @param canonicalContractPackage package matcher, e.g. {@code "com.example.contract.."}
-   * @return the rule
-   */
+  /** Types named like wire contracts must live in the contract package. */
   static ArchRule wireTypesLiveInCanonicalPackage(String canonicalContractPackage) {
     return ArchRuleDefinition.classes()
         .that()
@@ -104,18 +56,11 @@ public interface WireContractRules {
         .resideInAPackage(canonicalContractPackage)
         .because(
             "a class named Request/Response/Dto is a wire contract and must live in "
-                + canonicalContractPackage
-                + "; a service-local copy silently conflicts with the canonical schema")
+                + canonicalContractPackage)
         .allowEmptyShould(true);
   }
 
-  /**
-   * Controller methods must not return persistence entities, directly or wrapped in any depth of
-   * generics. Entities carry lazy relationships that fail outside a session and internal field
-   * names that drift from the documented shape.
-   *
-   * @return the rule
-   */
+  /** Controllers must not return persistence entities at any generic depth. */
   static ArchRule noEntityInControllerReturnType() {
     return ArchRuleDefinition.methods()
         .that()
@@ -124,19 +69,11 @@ public interface WireContractRules {
         .areDeclaredInClassesThat()
         .areAnnotatedWith(REST_CONTROLLER)
         .should(notExposeEntityInReturnType())
-        .because(
-            "controller return types are the wire contract; project the entity to a record in the "
-                + "contract package before returning it")
+        .because("controller return types are the wire contract")
         .allowEmptyShould(true);
   }
 
-  /**
-   * Event publishers must not accept persistence entities. Event payloads are serialized without a
-   * compile-time contract, so the method signature is the only place the invariant can be enforced.
-   *
-   * @param publisherPackage package matcher for publishers, e.g. {@code "..events.."}
-   * @return the rule
-   */
+  /** Event publishers must not accept persistence entities at any generic depth. */
   static ArchRule noEntityInEventPublisherParameters(String publisherPackage) {
     return ArchRuleDefinition.methods()
         .that()
@@ -145,18 +82,11 @@ public interface WireContractRules {
         .areDeclaredInClassesThat()
         .resideInAPackage(publisherPackage)
         .should(notAcceptEntityAsParameter())
-        .because(
-            "event payloads are serialized with no compile-time contract; project to a record at "
-                + "the caller so the published shape is reviewable")
+        .because("event payloads are serialized with no compile-time contract")
         .allowEmptyShould(true);
   }
 
-  /**
-   * Run every wire-contract rule. This is the method services call.
-   *
-   * @param classes imported service classes
-   * @param canonicalContractPackage package matcher for the contract package
-   */
+  /** Run every wire-contract rule. */
   static void checkAll(JavaClasses classes, String canonicalContractPackage) {
     noPublicNestedClassesInControllers().check(classes);
     wireTypesLiveInCanonicalPackage(canonicalContractPackage).check(classes);
@@ -164,14 +94,7 @@ public interface WireContractRules {
     noEntityInEventPublisherParameters("..events..").check(classes);
   }
 
-  /**
-   * Walk a type and its generic arguments recursively, returning the first persistence entity
-   * found. The recursion is the point: {@code ResponseEntity<Page<OrderEntity>>} leaks just as
-   * surely as a bare {@code OrderEntity}, and only a tree walk catches both.
-   *
-   * @param type the type to inspect
-   * @return the leaked entity, or null when the type tree is clean
-   */
+  /** First persistence entity in a type and its generic arguments, or null. */
   static JavaClass findEntityInTypeTree(JavaType type) {
     JavaClass raw = type.toErasure();
     if (raw.isAnnotatedWith(JPA_ENTITY)) {
@@ -188,15 +111,8 @@ public interface WireContractRules {
     return null;
   }
 
-  /**
-   * Condition: the method's return type tree contains no persistence entity.
-   *
-   * <p>Written as a positive condition on {@code methods().should(...)} rather than a negative one
-   * on {@code noMethods().should(...)}. Under the negative form ArchUnit inverts the event polarity
-   * and a violation reported here would silently pass.
-   *
-   * @return the condition
-   */
+  // Positive condition on methods().should(...) rather than noMethods().should(...):
+  // under the negative form ArchUnit inverts event polarity and violations pass silently.
   static ArchCondition<JavaMethod> notExposeEntityInReturnType() {
     return new ArchCondition<>("not return a persistence entity, at any generic depth") {
       @Override
@@ -216,11 +132,6 @@ public interface WireContractRules {
     };
   }
 
-  /**
-   * Condition: no parameter's type tree contains a persistence entity.
-   *
-   * @return the condition
-   */
   static ArchCondition<JavaMethod> notAcceptEntityAsParameter() {
     return new ArchCondition<>("not accept a persistence entity, at any generic depth") {
       @Override
@@ -243,11 +154,6 @@ public interface WireContractRules {
     };
   }
 
-  /**
-   * Predicate: the class is declared inside a controller.
-   *
-   * @return the predicate
-   */
   static DescribedPredicate<JavaClass> nestedInsideController() {
     return new DescribedPredicate<>("nested inside a controller class") {
       @Override
@@ -263,11 +169,6 @@ public interface WireContractRules {
     };
   }
 
-  /**
-   * Predicate: the class is not framework or JDK code, which must not be rewritten.
-   *
-   * @return the predicate
-   */
   static DescribedPredicate<JavaClass> outsideFrameworkPackages() {
     return DescribedPredicate.not(
         JavaClass.Predicates.resideInAnyPackage(
