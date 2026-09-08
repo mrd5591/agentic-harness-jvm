@@ -276,6 +276,46 @@ class WireContractRulesTest {
   }
 
   @Test
+  @DisplayName("a controller accepting an entity is a violation")
+  void entityAsControllerParameterIsRejected() {
+    assertThatThrownBy(
+            () ->
+                WireContractRules.noEntityInControllerParameters()
+                    .check(
+                        only(Fixtures.EntityParameterController.class, Fixtures.OrderEntity.class)))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "EntityParameterController.create accepts entity OrderEntity; bind a record from the "
+                + "contract package instead");
+  }
+
+  @Test
+  @DisplayName("an entity one generic level deep in a parameter is still a violation")
+  void wrappedEntityAsControllerParameterIsRejected() {
+    assertThatThrownBy(
+            () ->
+                WireContractRules.noEntityInControllerParameters()
+                    .check(
+                        only(
+                            Fixtures.WrappedEntityParameterController.class,
+                            Fixtures.OrderEntity.class)))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "WrappedEntityParameterController.createAll accepts entity OrderEntity; bind a record "
+                + "from the contract package instead");
+  }
+
+  @Test
+  @DisplayName("a controller accepting a contract record passes")
+  void recordAsControllerParameterIsAccepted() {
+    assertThatCode(
+            () ->
+                WireContractRules.noEntityInControllerParameters()
+                    .check(only(Fixtures.RecordParameterController.class, OrderResponse.class)))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
   @DisplayName("the type-tree walk returns null for a clean type")
   void typeTreeWalkReturnsNullWhenClean() {
     JavaClasses clean = only(Fixtures.CleanController.class, OrderResponse.class);
@@ -305,6 +345,16 @@ class WireContractRulesTest {
     assertThat(production).isNotEmpty();
     assertThat(production.stream().map(c -> c.getName()))
         .noneMatch(name -> name.contains(".fixture."));
+  }
+
+  @Test
+  @DisplayName("importService refuses an import that matched no class")
+  void importServiceRefusesEmptyImport() {
+    assertThatThrownBy(() -> WireContractRules.importService("io.harness.sampel.order"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "no production classes found in [io.harness.sampel.order]; check the package name for "
+                + "a typo, because every rule passes vacuously on an empty class set");
   }
 
   @Test
@@ -359,6 +409,26 @@ class WireContractRulesTest {
     assertThatThrownBy(() -> WireContractRules.checkAll(onlyReturnViolation, FIXTURE_BASE))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("returns entity");
+  }
+
+  @Test
+  @DisplayName("checkAll invokes the controller-parameter rule")
+  void checkAllInvokesControllerParameterRule() {
+    JavaClasses onlyParameterViolation =
+        only(Fixtures.EntityParameterController.class, Fixtures.OrderEntity.class);
+
+    assertThatThrownBy(() -> WireContractRules.checkAll(onlyParameterViolation, FIXTURE_BASE))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "EntityParameterController.create accepts entity OrderEntity; bind a record from the "
+                + "contract package instead");
+    // The clean counterpart still passes checkAll, so the rule is not failing indiscriminately.
+    assertThatCode(
+            () ->
+                WireContractRules.checkAll(
+                    only(Fixtures.RecordParameterController.class, OrderResponse.class),
+                    FIXTURE_BASE))
+        .doesNotThrowAnyException();
   }
 
   @Test

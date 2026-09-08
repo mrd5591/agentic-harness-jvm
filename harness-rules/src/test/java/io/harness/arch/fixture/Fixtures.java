@@ -102,6 +102,30 @@ public interface Fixtures {
     }
   }
 
+  /** Violation fixture: an entity bound straight off the request body. */
+  @RestController
+  class EntityParameterController {
+    public void create(OrderEntity body) {
+      // no-op fixture
+    }
+  }
+
+  /** Violation fixture: the same leak one generic level down, where a raw-type check misses it. */
+  @RestController
+  class WrappedEntityParameterController {
+    public void createAll(List<OrderEntity> body) {
+      // no-op fixture
+    }
+  }
+
+  /** Clean fixture: a controller binding the contract record, which must not trip the rule. */
+  @RestController
+  class RecordParameterController {
+    public void create(OrderResponse body) {
+      // no-op fixture
+    }
+  }
+
   /** The plain MVC stereotype, which the rules must treat exactly like {@code @RestController}. */
   @Controller
   class PlainController {
