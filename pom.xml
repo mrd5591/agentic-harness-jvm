@@ -35,6 +35,15 @@
     <pitest.version>1.17.0</pitest.version>
     <pitest-junit5.version>1.2.1</pitest-junit5.version>
     <surefire.version>3.5.2</surefire.version>
+    <dependency-check.version>13.0.0</dependency-check.version>
+
+    <!-- The core lifecycle plugins. Unpinned, these come from whatever Maven the
+         runner ships, so the same commit compiles and packages differently on two
+         machines and the gates see different bytecode. -->
+    <compiler-plugin.version>3.16.0</compiler-plugin.version>
+    <resources-plugin.version>3.5.0</resources-plugin.version>
+    <jar-plugin.version>3.5.1</jar-plugin.version>
+    <install-plugin.version>3.1.4</install-plugin.version>
 
     <!-- The coverage floor. Ratchet upward, never downward. See README, "The ratchet". -->
     <coverage.line.minimum>1.00</coverage.line.minimum>
@@ -111,6 +120,35 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>${surefire.version}</version>
         </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${compiler-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>${resources-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>${jar-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>${install-plugin.version}</version>
+        </plugin>
+        <!-- Gate 8 (sensor), invoked from .github/workflows/owasp-weekly.yml rather
+             than bound to a phase. Pinned here so the weekly run cannot silently
+             pick up a new major that reinterprets failBuildOnCVSS. The workflow
+             repeats the version in its GAV; keep the two in step. -->
+        <plugin>
+          <groupId>org.owasp</groupId>
+          <artifactId>dependency-check-maven</artifactId>
+          <version>${dependency-check.version}</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -124,6 +162,11 @@
           <execution>
             <id>prepare-agent</id>
             <goals><goal>prepare-agent</goal></goals>
+            <!-- Explicit, so -Djacoco.skip=true cannot turn the gate off. POM
+                 configuration wins over a plugin's user property. -->
+            <configuration>
+              <skip>false</skip>
+            </configuration>
           </execution>
           <execution>
             <id>report</id>
@@ -135,6 +178,7 @@
             <phase>test</phase>
             <goals><goal>check</goal></goals>
             <configuration>
+              <skip>false</skip>
               <rules>
                 <rule>
                   <element>PACKAGE</element>
@@ -196,6 +240,11 @@
           <violationSeverity>error</violationSeverity>
           <includeTestSourceDirectory>true</includeTestSourceDirectory>
           <failOnViolation>true</failOnViolation>
+          <!-- Both documented off-switches, closed. -Dcheckstyle.skip=true skips
+               the check; -Dcheckstyle.skipExec=true leaves it reading a stale
+               result file instead of the source. Neither is honoured now. -->
+          <skip>false</skip>
+          <skipExec>false</skipExec>
         </configuration>
         <executions>
           <execution>
@@ -216,6 +265,8 @@
           <effort>Max</effort>
           <threshold>Medium</threshold>
           <failOnError>true</failOnError>
+          <!-- Explicit, so -Dspotbugs.skip=true cannot turn the gate off. -->
+          <skip>false</skip>
         </configuration>
         <dependencies>
           <dependency>
@@ -256,6 +307,10 @@
               <targetClasses><param>io.harness.*</param></targetClasses>
               <targetTests><param>io.harness.*</param></targetTests>
               <mutationThreshold>${mutation.threshold}</mutationThreshold>
+              <!-- PIT's off-switches are -DskipPitest=true and the common
+                   -DskipTests. Configured here, neither is honoured. -->
+              <skip>false</skip>
+              <skipTests>false</skipTests>
               <timestampedReports>false</timestampedReports>
               <outputFormats>
                 <outputFormat>HTML</outputFormat>

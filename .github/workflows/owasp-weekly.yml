@@ -20,9 +20,12 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # Version pinned in the GAV, matching dependency-check.version in the
+      # parent POM. Unpinned, this resolves the latest release from Central on
+      # every run and a new major can reinterpret failBuildOnCVSS.
       - name: OWASP dependency-check
         run: >
-          mvn -B org.owasp:dependency-check-maven:check
+          mvn -B org.owasp:dependency-check-maven:13.0.0:check
           -DfailBuildOnCVSS=7
           -DassemblyAnalyzerEnabled=false
           -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
