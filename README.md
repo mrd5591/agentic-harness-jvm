@@ -10,12 +10,14 @@ mvn verify                # every gate: coverage ratchet, style, static analysis
 mvn -Pmutation verify     # adds mutation testing
 ```
 
-Companion to [agent-eval-mcp](https://github.com/mrd5591/agent-eval-mcp), which measures the agent's
-own behaviour (loops, tool failure rates, cost per change) from its session transcripts. This repo
-gates the code an agent writes; that one gates how it works.
+One of three. [agent-eval-mcp](https://github.com/mrd5591/agent-eval-mcp) measures the agent's own
+behaviour (loops, tool failure rates, cost per change) from its session transcripts.
+[agent-egress-gate](https://github.com/mrd5591/agent-egress-gate) is a deny-by-default proxy that
+constrains where a headless agent can reach, with a tamper-evident audit log. This repo gates the
+code an agent writes, the second gates how it works, and the third gates where it can go.
 
-Both are green on a clean checkout. Numbers in [METRICS.md](METRICS.md), all reproducible with the
-commands printed there.
+All three are green on a clean checkout. Numbers in [METRICS.md](METRICS.md), all reproducible with
+the commands printed there.
 
 ---
 
