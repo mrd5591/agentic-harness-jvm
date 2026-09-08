@@ -172,6 +172,58 @@ public interface Fixtures {
     }
   }
 
+  /**
+   * The generic-CRUD-base shape: the method is declared only in the un-annotated base, so javac
+   * emits no bridge method and a rule scoped by declaring class never sees it.
+   */
+  abstract class BaseCrudController<T> {
+    public T get() {
+      return null;
+    }
+  }
+
+  /** Binds an entity into the base's type parameter. The leak is on the extends clause. */
+  @RestController
+  class InheritingEntityController extends BaseCrudController<OrderEntity> {}
+
+  /** The same shape bound to a contract record, which must stay clean. */
+  @RestController
+  class InheritingCleanController extends BaseCrudController<OrderResponse> {}
+
+  /** A non-generic base whose own method returns an entity. */
+  abstract class BaseEntityReturningController {
+    public OrderEntity get() {
+      return new OrderEntity();
+    }
+  }
+
+  @RestController
+  class InheritsEntityMethodController extends BaseEntityReturningController {}
+
+  /** A base nobody annotates and no controller extends: must stay out of scope entirely. */
+  abstract class UnrelatedBase {
+    public OrderEntity get() {
+      return new OrderEntity();
+    }
+  }
+
+  /** An interface a controller implements, with nothing wrong with it. */
+  interface Describable {
+    String describe();
+  }
+
+  @RestController
+  class InterfaceImplementingController implements Describable {
+    @Override
+    public String describe() {
+      return "ok";
+    }
+  }
+
+  /** A controller whose generic supertype is bound to a nested generic carrying an entity. */
+  @RestController
+  class DeepGenericInheritingController extends BaseCrudController<List<OrderEntity>> {}
+
   /** The deep-nesting tree, since the holder is not visible outside this package. */
   static Class<?>[] deepControllerTree() {
     return new Class<?>[] {

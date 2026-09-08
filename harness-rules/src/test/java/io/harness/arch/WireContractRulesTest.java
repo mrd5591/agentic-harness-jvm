@@ -401,6 +401,22 @@ class WireContractRulesTest {
   }
 
   @Test
+  @DisplayName("checkAll invokes the supertype type-argument rule")
+  void checkAllInvokesTypeArgumentRule() {
+    // Only this rule can catch the set: the inherited method returns the type variable T,
+    // whose erasure is Object, so the return-type rule finds nothing however it is scoped.
+    JavaClasses onlyTypeArgumentViolation =
+        only(
+            Fixtures.BaseCrudController.class,
+            Fixtures.InheritingEntityController.class,
+            Fixtures.OrderEntity.class);
+
+    assertThatThrownBy(() -> WireContractRules.checkAll(onlyTypeArgumentViolation, FIXTURE_BASE))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("binds entity OrderEntity");
+  }
+
+  @Test
   @DisplayName("checkAll invokes the controller-return rule")
   void checkAllInvokesControllerReturnRule() {
     JavaClasses onlyReturnViolation =

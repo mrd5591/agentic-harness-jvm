@@ -72,6 +72,34 @@ public interface WireContractRules {
         .forSubtype();
   }
 
+  /**
+   * A controller, or a type some controller extends or implements.
+   *
+   * <p>Method rules scoped by {@code controller()} alone key on the class that <em>declares</em> a
+   * method, and a method inherited from an un-annotated base is declared only in that base. Given
+   * {@code abstract class BaseCrudController { public OrderEntity get() }} and
+   * {@code @RestController class OrderController extends BaseCrudController {}}, javac emits no
+   * bridge method, so nothing in the controller declares {@code get} and the rule saw nothing. The
+   * generic-CRUD-base pattern is common in exactly the multi-service codebases these packs target.
+   *
+   * <p>The widening is bounded by the import: only supertypes inside the service's own packages are
+   * candidates, because {@link #importService} imports those and the rules run against that set. A
+   * shared base outside them is not silently pulled in. {@code Object} is a supertype of everything
+   * and is likewise never in the imported set.
+   *
+   * <p>What this does <em>not</em> catch is the generic form, {@code extends
+   * BaseCrudController<OrderEntity>}: the inherited method returns the type variable {@code T},
+   * whose erasure is {@code Object}, so there is no entity to find on the method at all. The entity
+   * is on the extends clause, and {@link #noEntityInControllerTypeArguments()} is what reads it.
+   * Together the two cover the shape; either alone leaves half of it open.
+   */
+  static DescribedPredicate<JavaClass> controllerOrItsSupertype() {
+    return controller()
+        .or(JavaClass.Predicates.assignableFrom(controller()))
+        .as("a controller, or a type some controller extends or implements")
+        .forSubtype();
+  }
+
   /** Public nested classes in controllers shadow canonical contract types. */
   static ArchRule noPublicNestedClassesInControllers() {
     return ArchRuleDefinition.noClasses()
@@ -106,7 +134,7 @@ public interface WireContractRules {
         .that()
         .arePublic()
         .and()
-        .areDeclaredInClassesThat(controller())
+        .areDeclaredInClassesThat(controllerOrItsSupertype())
         .should(
             entityFree(
                 "return",
@@ -126,7 +154,7 @@ public interface WireContractRules {
         .that()
         .arePublic()
         .and()
-        .areDeclaredInClassesThat(controller())
+        .areDeclaredInClassesThat(controllerOrItsSupertype())
         .should(
             entityFree(
                 "accept",
@@ -134,6 +162,56 @@ public interface WireContractRules {
                 "bind a record from the contract package instead"))
         .because("a request body binds untrusted input to every settable field of the type")
         .allowEmptyShould(true);
+  }
+
+  /**
+   * Controllers must not bind a persistence entity into a supertype's type parameters.
+   *
+   * <p>This is the other half of the generic-CRUD-base hole, and the half no method rule can see.
+   * Given {@code @RestController class OrderController extends BaseCrudController<OrderEntity>},
+   * the inherited {@code get()} returns the type variable {@code T}, whose erasure is {@code
+   * Object}: there is no entity anywhere on the method to find, however the method rules are
+   * scoped. The entity appears only on the extends clause, so that is what this reads.
+   *
+   * <p>The effect on the wire is identical to declaring the entity return type outright - the
+   * controller serialises {@code OrderEntity} either way - so it is the same violation, found
+   * somewhere else.
+   */
+  static ArchRule noEntityInControllerTypeArguments() {
+    return ArchRuleDefinition.classes()
+        .that(controller())
+        .should(
+            new ArchCondition<JavaClass>(
+                "not bind a persistence entity into a supertype's type parameters") {
+              @Override
+              public void check(JavaClass controllerClass, ConditionEvents events) {
+                for (JavaType supertype : supertypesOf(controllerClass)) {
+                  JavaClass leaked = findEntityInTypeTree(supertype);
+                  if (leaked != null) {
+                    events.add(
+                        SimpleConditionEvent.violated(
+                            controllerClass,
+                            String.format(
+                                "%s binds entity %s into %s; parameterise the base with a record "
+                                    + "from the contract package instead",
+                                controllerClass.getSimpleName(),
+                                leaked.getSimpleName(),
+                                supertype.toErasure().getSimpleName())));
+                    return;
+                  }
+                }
+              }
+            })
+        .because("an inherited generic method serialises whatever the base was parameterised with")
+        .allowEmptyShould(true);
+  }
+
+  /** A class's declared superclass and interfaces, as generic types rather than erasures. */
+  private static List<JavaType> supertypesOf(JavaClass javaClass) {
+    List<JavaType> supertypes = new ArrayList<>();
+    javaClass.getSuperclass().ifPresent(supertypes::add);
+    supertypes.addAll(javaClass.getInterfaces());
+    return supertypes;
   }
 
   /** Event publishers must not accept persistence entities at any generic depth. */
@@ -161,6 +239,7 @@ public interface WireContractRules {
     wireTypesLiveInCanonicalPackage(basePackage + ".contract..").check(classes);
     noEntityInControllerReturnType().check(classes);
     noEntityInControllerParameters().check(classes);
+    noEntityInControllerTypeArguments().check(classes);
     noEntityInEventPublisherParameters(basePackage + ".events..").check(classes);
   }
 

@@ -58,11 +58,13 @@ is a sensor trains everyone, human and agent alike, to treat red as noise.
 
 | # | Gate | Kind | Phase | What it catches |
 |---|------|------|-------|-----------------|
+| 0 | Tests cannot be skipped | sensor | `test` | `-DskipTests`, `-Dmaven.test.skip` and `-Dmaven.test.failure.ignore`. With no tests run, JaCoCo finds no execution data and its check goal *skips rather than fails*, so the coverage gate was silently absent on a BUILD SUCCESS. |
 | 1 | JaCoCo line coverage, per package, floor 1.00 | sensor | `test` | Code nobody exercised. Per-package, so one well-tested module cannot subsidize a bare one. |
 | 2 | Spotless (google-java-format) | guide | `validate` | Nothing. It applies formatting so drift never becomes a conversation. |
 | 3 | Checkstyle, deliberately small | sensor | `validate` | Empty catch blocks, star imports, `==` on strings, missing switch defaults. The shortcuts an agent takes when a test will not go green. |
 | 4 | SpotBugs at max effort, plus FindSecBugs | sensor | `verify` | Real defects. On the first run it found a mutable-record leak here: `PostingResponse` stored the caller's `List` directly, so a record advertising itself as a value was not one. The `List.copyOf` in its compact constructor is that finding's fix. |
 | 5 | ArchUnit rule packs | sensor | `test` | Wire-contract drift and layering inversions, enforced identically in every module. |
+| 5b | Module adoption | sensor | `test` | A new module that inherits every sensor but has no architecture test, and so passes while checking nothing. |
 | 6 | PIT mutation testing, floor 85% | sensor | `verify` (opt-in) | Tests that execute code without asserting anything about it. |
 | 7 | CodeQL, weekly plus per-PR | sensor | CI | Security patterns, including in code that has not changed. |
 | 8 | OWASP dependency-check, weekly | sensor | CI | Dependency risk, which arrives on the calendar rather than on your commit schedule. |
@@ -132,6 +134,28 @@ Copy it into a new module, change one string. That property is what matters when
 created faster than anyone can review their structure: a rule written once cannot be forgotten in
 module nineteen.
 
+**And forgetting to copy it is itself a build failure.** That sentence used to be an intention.
+Within an adopting module the property held, but adoption was a copy-paste convention enforced by
+nothing: a new module inherited Checkstyle, SpotBugs, JaCoCo and PIT, had no architecture test at
+all, and passed. `importService`'s empty-import guard catches a *mistyped* base package, not an
+*absent* test.
+
+`ModuleAdoptionTest` now reads the reactor's own `<module>` list and fails the build for any module
+with no `ArchitectureTest`, or one that does not reference both rule packs. Deleting the file from a
+service produces:
+
+```
+these modules have no ArchitectureTest, so they inherit the sensors but none of the
+architecture rules and pass while checking nothing: [sample-ledger-service]
+```
+
+It reaches outside its own module, which is unusual and deliberate — the claim is about the reactor,
+and there is nowhere inside a single module to make it from. The tidier-looking alternative does not
+exist: putting the `harness-rules` test dependency in the parent's `<dependencies>` so every module
+inherits it makes `harness-rules` depend on itself, and Maven refuses to build. An intermediate
+service-parent POM would work but only removes a copy-paste step; it still forces nothing, which was
+the actual gap.
+
 ## What the ratchet forced
 
 A 100% line floor is a design constraint, not just a testing one. Three things it changed here:
@@ -191,6 +215,24 @@ Both modules now sit at 100% mutation score. The general lesson is the one Böck
 the other direction, finding surviving mutants under 100% statement coverage: **line coverage tells
 you code ran, and nothing else.** If you are going to enforce a coverage number at all, enforce a
 mutation number next to it, or the first one is theatre.
+
+### What 100% here does not cover
+
+Records. PIT's default `+frecord` filter excludes record-generated members, and it takes the
+**whole record** with it: `LedgerContracts` contributes **zero mutants**, before and after real
+invariants were added to `EntryResponse`'s compact constructor. Proven causal — running with
+`-Dfeatures=-frecord` makes `EntryResponse.<init>` yield `ConditionalsBoundary` and
+`NegateConditionals` mutants, and the existing tests kill both.
+
+So those guards are mutation-proof and get no credit for it, and — the part that matters — the
+*next* invariant put in a compact constructor will get no scrutiny from the gate at all. That is
+worth naming loudly here, because this repo's own guidance recommends exactly that shape ("reject
+at construction").
+
+The filter stays on. Disabling it wholesale also surfaces about ten `NO_COVERAGE` mutants on record
+accessors and one genuine survivor (`equals` → `true`), so turning it off is not free and is not a
+decision to make as a side effect of closing this gap. **Read "100% mutation score" as "100% of the
+mutants PIT generates", and know that record invariants are not among them.**
 
 ## What is deliberately not here
 
