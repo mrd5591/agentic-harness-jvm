@@ -18,12 +18,15 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # Every gate runs here. There is no "warn only" mode: if this job is green
-      # the change is mergeable, and if it is red it is not. That property is the
-      # whole point, because it is what lets an agent's output be trusted without
-      # a human reading every line.
-      # One invocation. PIT is bound to verify after SpotBugs, so the mutation
-      # profile runs every other gate on the way and nothing needs a second pass.
+      # Every gate runs here, in one invocation. There is no "warn only" mode:
+      # any gate that fails fails this job. PIT is bound to verify after
+      # SpotBugs, so the mutation profile runs every other gate on the way and
+      # nothing needs a second pass.
+      #
+      # What a workflow file cannot do is make green mean mergeable. That takes
+      # a branch protection rule or a ruleset marking this check required, and
+      # that is a repository setting, not something this file can assert about
+      # itself. Until one exists, a red build can still be pushed to main.
       - name: Verify (coverage ratchet, checkstyle, spotbugs, architecture rules, mutation)
         run: mvn -B -Pmutation verify
 

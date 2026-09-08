@@ -8,6 +8,7 @@ import io.harness.sample.ledger.contract.LedgerContracts.EntryResponse;
 import io.harness.sample.ledger.contract.LedgerContracts.PostingResponse;
 import io.harness.sample.ledger.contract.LedgerContracts.Side;
 import io.harness.sample.order.contract.OrderContracts.OrderPlacedEvent;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -145,7 +146,7 @@ class LedgerServiceTest {
   }
 
   @Test
-  @DisplayName("post rejects balanced negative entries, which move the wrong amount")
+  @DisplayName("post rejects negative entries, which are refused before they are ever a posting")
   void postRejectsNegativeEntries() {
     LedgerService negative =
         new LedgerService(
@@ -155,8 +156,8 @@ class LedgerServiceTest {
                     new EntryResponse("b", Side.CREDIT, -50L)));
 
     assertThatThrownBy(() -> negative.post(new OrderPlacedEvent("order-8", 50L)))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("posting moves -50 but the event is for 50");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("amountCents must be positive, was -50");
   }
 
   @Test
@@ -205,5 +206,88 @@ class LedgerServiceTest {
     assertThatThrownBy(() -> LedgerService.requireAmount(List.of(), 1L))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("posting moves 0 but the event is for 1");
+  }
+
+  @Test
+  @DisplayName("post validates the list it ships, not a first reading of a list that answers twice")
+  void postValidatesTheEntriesItShips() {
+    EntryResponse[] shipped = {
+      new EntryResponse("ar", Side.DEBIT, 5000L), new EntryResponse("rev", Side.CREDIT, 5000L)
+    };
+    List<EntryResponse> twoFaced =
+        new ArrayList<>(
+            List.of(
+                new EntryResponse("ar", Side.DEBIT, 1000L),
+                new EntryResponse("rev", Side.CREDIT, 1000L))) {
+          @Override
+          public Object[] toArray() {
+            return shipped.clone();
+          }
+        };
+    LedgerService twoFacedStrategy = new LedgerService(event -> twoFaced);
+
+    assertThatThrownBy(() -> twoFacedStrategy.post(new OrderPlacedEvent("order-9", 1000L)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves 5000 but the event is for 1000");
+  }
+
+  @Test
+  @DisplayName("a negative debit cannot buy headroom for an oversized one")
+  void negativeDebitCannotBuyHeadroom() {
+    LedgerService smuggler =
+        new LedgerService(
+            event ->
+                List.of(
+                    new EntryResponse("a", Side.DEBIT, 2000L),
+                    new EntryResponse("b", Side.DEBIT, -1000L),
+                    new EntryResponse("c", Side.CREDIT, 1000L)));
+
+    assertThatThrownBy(() -> smuggler.post(new OrderPlacedEvent("order-10", 1000L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("amountCents must be positive, was -1000");
+  }
+
+  @Test
+  @DisplayName("an entry amount is strictly positive: zero and negative are not values")
+  void entryAmountIsStrictlyPositive() {
+    assertThatThrownBy(() -> new EntryResponse("a", Side.DEBIT, 0L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("amountCents must be positive, was 0");
+    assertThatThrownBy(() -> new EntryResponse("a", Side.CREDIT, -1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("amountCents must be positive, was -1");
+  }
+
+  @Test
+  @DisplayName("a null side is refused, not filed as a credit")
+  void nullSideIsRefused() {
+    LedgerService sideless =
+        new LedgerService(
+            event ->
+                List.of(
+                    new EntryResponse("ar", Side.DEBIT, 1000L),
+                    new EntryResponse("rev", null, 1000L)));
+
+    assertThatThrownBy(() -> sideless.post(new OrderPlacedEvent("order-11", 1000L)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("side must not be null");
+  }
+
+  @Test
+  @DisplayName("a null account is refused")
+  void nullAccountIsRefused() {
+    assertThatThrownBy(() -> new EntryResponse(null, Side.DEBIT, 100L))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("account must not be null");
+  }
+
+  @Test
+  @DisplayName("a well-formed entry still constructs and keeps every component")
+  void wellFormedEntryStillConstructs() {
+    EntryResponse entry = new EntryResponse("ar", Side.DEBIT, 1L);
+
+    assertThat(entry.account()).isEqualTo("ar");
+    assertThat(entry.side()).isEqualTo(Side.DEBIT);
+    assertThat(entry.amountCents()).isEqualTo(1L);
   }
 }

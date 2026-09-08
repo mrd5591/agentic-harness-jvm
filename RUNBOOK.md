@@ -48,7 +48,7 @@ failures. Reviewing a diff that has not been through the gates wastes the gates.
 
 | Evasion | What it looks like | Response |
 |---|---|---|
-| Deleted assertion | A test still exists and asserts less | Checkstyle catches the empty block; mutation score catches the hollow test |
+| Deleted assertion | A test still exists and asserts less | Mutation score, and only if the assertion was load-bearing. Read the test diff. |
 | Weakened threshold | `coverage.line.minimum` edited, `mutationThreshold` lowered | Reject on sight. The floor moves one way. |
 | New SpotBugs exclusion | A fresh `<Match>` in the exclude file | Treat as a gate change: it needs a reason and a reviewer |
 | Disabled test | `@Disabled`, or a test quietly renamed out of the pattern | Grep the diff for it |
@@ -56,6 +56,16 @@ failures. Reviewing a diff that has not been through the gates wastes the gates.
 
 All five are cheap to spot in a diff *if you know to look*. That list is most of what code review is
 for when the code was generated.
+
+**The first row is the weakest, and it is the one that looks strongest.** Checkstyle does not catch
+a deleted assertion — `EmptyCatchBlock` catches an empty `catch`, `EmptyStatement` catches a stray
+`;`, and neither fires on a test that still runs and asserts less. That leaves the mutation score,
+which catches it only when the deleted assertion was the one pinning some mutated behaviour. Tried
+here: deleting `assertThat(response.sku()).isEqualTo("SKU-3")` from `OrderControllerTest` leaves the
+full gate green, mutation profile included, because the projection is already pinned by
+`OrderServiceTest`. So no gate distinguishes a redundant assertion from a load-bearing one, and this
+row is a *review* item that two gates partially assist with. Treat the other four as mechanical and
+this one as something you have to read for.
 
 **Watch for the drift the rules catch, and let them catch it.** Do not pre-emptively correct a
 contract violation you notice in progress. Let the architecture test fail, so you learn whether the
