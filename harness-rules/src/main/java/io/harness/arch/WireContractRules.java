@@ -33,11 +33,31 @@ public interface WireContractRules {
 
   String WIRE_TYPE_NAME_PATTERN = ".*(Request|Response|Dto)";
 
-  /** Import a service's production classes, excluding tests. */
+  /**
+   * Import a service's production classes, excluding tests.
+   *
+   * <p>Guaranteed non-empty. Every rule in this pack allows an empty class set, so an import that
+   * matched nothing would turn a service's whole gate green while checking nothing, permanently and
+   * invisibly. A service importing its own packages and finding no class has a typo in the package
+   * name, never a legitimate empty state, so this refuses to hand back the empty result.
+   *
+   * @param packages the service's base packages
+   * @return the imported production classes, never empty
+   * @throws IllegalArgumentException if no production class resides in any of {@code packages}
+   */
   static JavaClasses importService(String... packages) {
-    return new ClassFileImporter()
-        .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-        .importPackages(packages);
+    JavaClasses imported =
+        new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+            .importPackages(packages);
+    if (imported.isEmpty()) {
+      throw new IllegalArgumentException(
+          "no production classes found in "
+              + List.of(packages)
+              + "; check the package name for a typo, because every rule passes vacuously on an "
+              + "empty class set");
+    }
+    return imported;
   }
 
   /**
@@ -96,6 +116,26 @@ public interface WireContractRules {
         .allowEmptyShould(true);
   }
 
+  /**
+   * Controllers must not accept persistence entities at any generic depth. Inbound is the same
+   * boundary as outbound and the more dangerous direction: an entity bound from a request body
+   * exposes every settable field, including the ones the caller was never meant to set.
+   */
+  static ArchRule noEntityInControllerParameters() {
+    return ArchRuleDefinition.methods()
+        .that()
+        .arePublic()
+        .and()
+        .areDeclaredInClassesThat(controller())
+        .should(
+            entityFree(
+                "accept",
+                JavaMethod::getParameterTypes,
+                "bind a record from the contract package instead"))
+        .because("a request body binds untrusted input to every settable field of the type")
+        .allowEmptyShould(true);
+  }
+
   /** Event publishers must not accept persistence entities at any generic depth. */
   static ArchRule noEntityInEventPublisherParameters(String publisherPackage) {
     return ArchRuleDefinition.methods()
@@ -120,6 +160,7 @@ public interface WireContractRules {
     noPublicNestedClassesInControllers().check(classes);
     wireTypesLiveInCanonicalPackage(basePackage + ".contract..").check(classes);
     noEntityInControllerReturnType().check(classes);
+    noEntityInControllerParameters().check(classes);
     noEntityInEventPublisherParameters(basePackage + ".events..").check(classes);
   }
 
