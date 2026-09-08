@@ -25,6 +25,7 @@ jobs:
           mvn -B org.owasp:dependency-check-maven:check
           -DfailBuildOnCVSS=7
           -DassemblyAnalyzerEnabled=false
+          -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 

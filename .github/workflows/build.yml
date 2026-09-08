@@ -22,10 +22,9 @@ jobs:
       # the change is mergeable, and if it is red it is not. That property is the
       # whole point, because it is what lets an agent's output be trusted without
       # a human reading every line.
-      - name: Verify (coverage ratchet, checkstyle, spotbugs, architecture rules)
-        run: mvn -B verify
-
-      - name: Mutation testing
+      # One invocation. PIT is bound to verify after SpotBugs, so the mutation
+      # profile runs every other gate on the way and nothing needs a second pass.
+      - name: Verify (coverage ratchet, checkstyle, spotbugs, architecture rules, mutation)
         run: mvn -B -Pmutation verify
 
       - name: Publish reports

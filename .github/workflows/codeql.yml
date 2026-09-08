@@ -28,7 +28,12 @@ jobs:
         with:
           languages: java-kotlin
 
-      - name: Build
-        run: mvn -B -DskipTests package
+      # Compile only. Spotless would rewrite sources before extraction and shift
+      # SARIF line numbers; the other gates already run in the build workflow.
+      - name: Compile for extraction
+        run: >
+          mvn -B compile
+          -Dspotless.apply.skip=true -Dspotless.check.skip=true
+          -Dcheckstyle.skip=true -Djacoco.skip=true
 
       - uses: github/codeql-action/analyze@v3
