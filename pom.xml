@@ -32,7 +32,7 @@
     <spotbugs.version>4.10.4.1</spotbugs.version>
     <findsecbugs.version>1.13.0</findsecbugs.version>
     <spotless.version>2.43.0</spotless.version>
-    <pitest.version>1.17.0</pitest.version>
+    <pitest.version>1.30.0</pitest.version>
     <pitest-junit5.version>1.2.1</pitest-junit5.version>
     <surefire.version>3.5.2</surefire.version>
     <dependency-check.version>13.0.0</dependency-check.version>
