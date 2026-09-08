@@ -20,8 +20,8 @@ class LedgerServiceTest {
   private final LedgerService ledger = new LedgerService();
 
   @ParameterizedTest
-  @ValueSource(longs = {1L, 2L, 99L, 100L, 4200L, 999_999_999L})
-  @DisplayName("every posting balances, whatever the amount")
+  @ValueSource(longs = {1L, 2L, 99L, 100L, 4200L, 999_999_999L, Long.MAX_VALUE})
+  @DisplayName("every posting balances and moves the event amount, whatever the amount")
   void everyPostingBalances(long amount) {
     PostingResponse posting = ledger.post(new OrderPlacedEvent("order-1", amount));
 
@@ -82,6 +82,33 @@ class LedgerServiceTest {
   }
 
   @Test
+  @DisplayName("debits that wrap a long to zero are refused, not accepted as balanced")
+  void overflowingDebitsAreRefused() {
+    List<EntryResponse> wrapsToZero =
+        List.of(
+            new EntryResponse("a", Side.DEBIT, Long.MAX_VALUE),
+            new EntryResponse("b", Side.DEBIT, Long.MAX_VALUE),
+            new EntryResponse("c", Side.DEBIT, 2L));
+
+    assertThatThrownBy(() -> LedgerService.requireBalanced(wrapsToZero))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+  }
+
+  @Test
+  @DisplayName("credits that wrap a long are refused, not accepted as balanced")
+  void overflowingCreditsAreRefused() {
+    List<EntryResponse> wraps =
+        List.of(
+            new EntryResponse("a", Side.CREDIT, Long.MAX_VALUE),
+            new EntryResponse("b", Side.CREDIT, Long.MAX_VALUE));
+
+    assertThatThrownBy(() -> LedgerService.requireBalanced(wraps))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+  }
+
+  @Test
   @DisplayName("post rejects a strategy that produces an unbalanced posting")
   void postRejectsUnbalancedStrategy() {
     LedgerService broken =
@@ -90,6 +117,74 @@ class LedgerServiceTest {
     assertThatThrownBy(() -> broken.post(new OrderPlacedEvent("order-4", 10L)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("posting does not balance, net = 10");
+  }
+
+  @Test
+  @DisplayName("post rejects a balanced posting that moves a different amount than the event")
+  void postRejectsWrongAmount() {
+    LedgerService pennies =
+        new LedgerService(
+            event ->
+                List.of(
+                    new EntryResponse("a", Side.DEBIT, 1L),
+                    new EntryResponse("b", Side.CREDIT, 1L)));
+
+    assertThatThrownBy(() -> pennies.post(new OrderPlacedEvent("order-6", 100L)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves 1 but the event is for 100");
+  }
+
+  @Test
+  @DisplayName("post rejects a strategy that moves no money at all")
+  void postRejectsEmptyEntries() {
+    LedgerService silent = new LedgerService(event -> List.of());
+
+    assertThatThrownBy(() -> silent.post(new OrderPlacedEvent("order-7", 10L)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves 0 but the event is for 10");
+  }
+
+  @Test
+  @DisplayName("post rejects balanced negative entries, which move the wrong amount")
+  void postRejectsNegativeEntries() {
+    LedgerService negative =
+        new LedgerService(
+            event ->
+                List.of(
+                    new EntryResponse("a", Side.DEBIT, -50L),
+                    new EntryResponse("b", Side.CREDIT, -50L)));
+
+    assertThatThrownBy(() -> negative.post(new OrderPlacedEvent("order-8", 50L)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves -50 but the event is for 50");
+  }
+
+  @Test
+  @DisplayName("the amount check refuses debits that overflow, even when the posting balances")
+  void amountCheckRefusesOverflow() {
+    List<EntryResponse> balancedButHuge =
+        List.of(
+            new EntryResponse("a", Side.DEBIT, Long.MAX_VALUE),
+            new EntryResponse("b", Side.CREDIT, Long.MAX_VALUE),
+            new EntryResponse("c", Side.DEBIT, Long.MAX_VALUE),
+            new EntryResponse("d", Side.CREDIT, Long.MAX_VALUE));
+
+    assertThatCode(() -> LedgerService.requireBalanced(balancedButHuge)).doesNotThrowAnyException();
+    assertThatThrownBy(() -> LedgerService.requireAmount(balancedButHuge, Long.MAX_VALUE))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+  }
+
+  @Test
+  @DisplayName("the amount check counts debits only, so credits cannot stand in for them")
+  void amountCheckCountsDebitsOnly() {
+    List<EntryResponse> lopsided =
+        List.of(new EntryResponse("a", Side.DEBIT, 100L), new EntryResponse("b", Side.CREDIT, 60L));
+
+    assertThatCode(() -> LedgerService.requireAmount(lopsided, 100L)).doesNotThrowAnyException();
+    assertThatThrownBy(() -> LedgerService.requireAmount(lopsided, 60L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves 100 but the event is for 60");
   }
 
   @Test
@@ -104,8 +199,11 @@ class LedgerServiceTest {
   }
 
   @Test
-  @DisplayName("the balance check accepts an empty set")
+  @DisplayName("the balance check alone accepts an empty set; post does not")
   void emptyEntriesBalance() {
     assertThatCode(() -> LedgerService.requireBalanced(List.of())).doesNotThrowAnyException();
+    assertThatThrownBy(() -> LedgerService.requireAmount(List.of(), 1L))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("posting moves 0 but the event is for 1");
   }
 }

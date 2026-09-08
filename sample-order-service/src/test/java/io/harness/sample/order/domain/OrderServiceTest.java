@@ -53,7 +53,8 @@ class OrderServiceTest {
   void overflowingTotalThrows() {
     assertThatThrownBy(
             () -> service.place(new CreateOrderRequest("SKU-1", Integer.MAX_VALUE, Long.MAX_VALUE)))
-        .isInstanceOf(ArithmeticException.class);
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
   }
 
   @Test
