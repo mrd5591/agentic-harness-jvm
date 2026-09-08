@@ -14,42 +14,68 @@ Measured 2026-09-08. Java 21 (Temurin/Oracle 21), Maven 3.9.11, Windows 11.
 | Metric | Value | How |
 |---|---|---|
 | Modules | 3 | `harness-rules`, `sample-order-service`, `sample-ledger-service` |
-| Production lines | 515 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
-| Test lines | 1,183 | same, `src/test` |
-| Test methods | 72 | Surefire totals: 39 + 10 + 23 |
+| Production lines | 583 | `find . -path '*/src/main/java/*' -name '*.java' -exec cat {} + \| wc -l` |
+| Test lines | 1,361 | same, `src/test` |
+| Test methods | 77 | `grep -rho '@Test\b\|@ParameterizedTest\b' --include=*.java */src/test \| wc -l`: 44 + 10 + 23 |
+| Test executions | 83 | Surefire totals: 44 + 10 + 29. Higher than the method count because one `@ParameterizedTest` carries seven values |
 | Line coverage | 100%, enforced per package | `mvn verify`, JaCoCo `check` with `COVEREDRATIO` floor 1.00 and `haltOnFailure` |
-| Mutation score | 100% (63/63 killed) | `mvn -Pmutation verify`; PIT reports 42 + 11 + 10 mutations, all killed, test strength 100% |
+| Mutation score | 100% (66/66 killed) | `mvn -Pmutation verify`; PIT reports 45 + 11 + 10 mutations, all killed, test strength 100% |
 | Checkstyle violations | 0 | reported per module during `validate` |
 | SpotBugs findings | 0 | max effort, medium threshold, FindSecBugs included, at `verify` |
-| Architecture rules | 7, adopted by 2 services via 2 tests and one base-package string each | `WireContractRules` (4) + `LayeringRules` (3) |
-| `mvn clean verify` | 23.9 s | wall clock, warm local repository |
-| `mvn -Pmutation verify` | 38.1 s | same tree |
-| `mvn clean -Pmutation verify` | 38.5 s | cold |
+| Architecture rules | 8, adopted by 2 services via 2 tests and one base-package string each | `WireContractRules` (5) + `LayeringRules` (3) |
+| `mvn clean verify` | 20.9 s | wall clock, warm local repository |
+| `mvn -Pmutation verify` | 38.3 s | same tree |
+| `mvn clean -Pmutation verify` | 42.2 s | cold |
+
+The method count and the execution count are reported separately on purpose. They differ here by
+six, which is small enough to be tempting to ignore, and ignoring it is exactly the conflation the
+honesty note in Part 2 is about. Surefire counts executions; `@Test` counts methods; neither counts
+assertions or distinct behaviours.
 
 Reproduce. All three were run consecutively on a clean tree and all three reported BUILD SUCCESS:
 
 ```bash
 mvn -B clean verify                # BUILD SUCCESS
-mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 42/11/10 (100%)"
+mvn -B -Pmutation verify           # BUILD SUCCESS, "Killed 45/11/10 (100%)"
 mvn -B clean -Pmutation verify     # BUILD SUCCESS, same mutation counts
 ```
 
-To see the gates actually bite, break something and rerun: delete an assertion, return
-`OrderRecord` instead of `OrderResponse` from `OrderController.place`, add a `public static class`
-inside a controller, or remove one `check()` call from either `checkAll`. Each of those turns the
-build red, and the last one is red only because of the delegation tests that mutation testing
-demanded.
+To see the gates actually bite, break something and rerun. These four turn the build red, and each
+is red for a different reason:
 
-### The two findings
+- Return `OrderRecord` instead of `OrderResponse` from `OrderController.place` — the entity-leak
+  rule, via `ArchitectureTest.wireContractHolds`.
+- Take an `OrderRecord` as a parameter of a controller method — the same rule in the inbound
+  direction.
+- Add a `public static class` inside a controller — the nested-type rule, same test.
+- Remove one `check()` call from either `checkAll` — red only because of the delegation tests that
+  mutation testing demanded.
 
-Both are described in the README and are the reason the repo exists in this shape.
+**"Delete an assertion" is not on that list, and the reason is worth more than the list.** It was,
+until we tried it: deleting `assertThat(response.sku()).isEqualTo("SKU-3")` from
+`OrderControllerTest` leaves `mvn -B -Pmutation verify` fully green — BUILD SUCCESS, 100% coverage,
+66/66 mutants still killed. The assertion is redundant, because `OrderServiceTest` already pins that
+projection, and no gate can distinguish a redundant assertion from a load-bearing one. Deleting a
+*load-bearing* assertion does turn the build red, and that is what the mutation score buys. Stated
+precisely: mutation testing tells you which assertions are load-bearing. It does not tell you that
+every assertion is.
+
+### The findings
+
+All three are described in the README and the write-up, and are the reason the repo exists in this
+shape.
 
 1. **Coverage 0.99, one line short.** The uncovered line was the exhausted-loop path in
    `WireContractRules.findEntityInTypeTree`: a generic type descended into and found clean. Nothing
    proved the rule would not false-positive on every `List<Record>` endpoint.
-2. **Mutation score 79% at 100% line coverage.** Seven survivors, all `VoidMethodCallMutator`
-   removals of individual `check()` calls inside `checkAll`. Deleting a rule from either aggregator
-   left the entire suite green.
+2. **Mutation score 79% at 100% line coverage.** Seven survivors in `harness-rules`, all
+   `VoidMethodCallMutator` removals of individual `check()` calls inside `checkAll`. Deleting a rule
+   from either aggregator left the entire suite green.
+3. **A guard no test could trip.** In the ledger, PIT deleted `requireBalanced` entirely and every
+   test stayed green, because the only posting strategy in the codebase was structurally incapable
+   of producing an unbalanced result. Unlike the seven above, this one could not be fixed with a
+   test: the strategy had to become a constructor parameter first, so a test could inject a broken
+   one. The tool asked for a design change, not more coverage.
 
 ---
 
@@ -65,17 +91,17 @@ report against the working tree.
 | Production files | 1,614 | `find . -path '*/src/main/java/*' -name '*.java' \| wc -l` | files, not classes |
 | Production lines | 189,714 | `... -exec cat {} + \| wc -l` | includes comments and blanks |
 | Test lines | 422,685 | same for `src/test` | 2.2 lines of test per line of production |
-| Test files | 1,404 | `find . -name '*Test.java' -o -name '*Tests.java' -o -name '*IT.java'` | |
+| Test files | 1,404 | `find . \( -name '*Test.java' -o -name '*Tests.java' -o -name '*IT.java' \) \| wc -l` | |
 | `@Test` annotations | 16,494 | `grep -rho '@Test\b' --include=*.java . \| wc -l` | **annotations, not executions** |
 | `@ParameterizedTest` | 68 | same pattern | each expands to several executions at run time |
 | Architecture test classes | 82 | `find . -name '*Arch*Test*.java' \| wc -l` | per-service adopters of shared packs |
 | `ArchRule` declarations | 32 | `grep -rho 'ArchRule ' --include=*.java . \| wc -l` | the shared rules those 82 classes apply |
-| Files referencing Testcontainers | 77 | `grep -rl 'Testcontainers\|testcontainers' --include=*.java --include=*.yml .` | includes compose files and base classes |
-| `@Testcontainers` classes | 20 | `grep -rho '@Testcontainers' --include=*.java .` | actual container-backed test classes |
-| Kubernetes manifests | 38 | `find k8s infrastructure -name '*.yaml' -o -name '*.yml'` | |
+| Files referencing Testcontainers | 77 | `grep -rl 'Testcontainers\|testcontainers' --include=*.java --include=*.yml . \| wc -l` | includes compose files and base classes |
+| `@Testcontainers` classes | 20 | `grep -rho '@Testcontainers' --include=*.java . \| wc -l` | actual container-backed test classes |
+| Kubernetes manifests | 38 | `find k8s infrastructure \( -name '*.yaml' -o -name '*.yml' \) \| wc -l` | |
 | Line coverage floor | 1.00 per package | parent POM, `COVEREDRATIO` / `haltOnFailure` | ratcheted from 0.95 on 2026-06-22 |
 | Commits | 1,144 | `git log --oneline \| wc -l` | |
-| Active period | 2025-08-30 to 2026-08-03 | `git log --format=%ad --date=short` | ~49 calendar weeks |
+| Active period | 2025-08-30 to 2026-08-03 | `git log --format=%ad --date=short` | 338 days, ~48 calendar weeks |
 | Weeks with commits | 22 | `git log --format=%ad --date=format:%Y-%W \| sort -u \| wc -l` | development was bursty, not steady |
 | Commits per active week | ~52 | 1,144 / 22 | ~23 per calendar week across the whole span |
 | Revert commits | 4 | `git log --oneline --grep='^Revert' \| wc -l` | **0.35% revert rate** |

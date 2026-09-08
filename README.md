@@ -61,7 +61,7 @@ is a sensor trains everyone, human and agent alike, to treat red as noise.
 | 1 | JaCoCo line coverage, per package, floor 1.00 | sensor | `test` | Code nobody exercised. Per-package, so one well-tested module cannot subsidize a bare one. |
 | 2 | Spotless (google-java-format) | guide | `validate` | Nothing. It applies formatting so drift never becomes a conversation. |
 | 3 | Checkstyle, deliberately small | sensor | `validate` | Empty catch blocks, star imports, `==` on strings, missing switch defaults. The shortcuts an agent takes when a test will not go green. |
-| 4 | SpotBugs at max effort, plus FindSecBugs | sensor | `verify` | Real defects. It found a mutable-record leak in this repo on the first run; see below. |
+| 4 | SpotBugs at max effort, plus FindSecBugs | sensor | `verify` | Real defects. On the first run it found a mutable-record leak here: `PostingResponse` stored the caller's `List` directly, so a record advertising itself as a value was not one. The `List.copyOf` in its compact constructor is that finding's fix. |
 | 5 | ArchUnit rule packs | sensor | `test` | Wire-contract drift and layering inversions, enforced identically in every module. |
 | 6 | PIT mutation testing, floor 85% | sensor | `verify` (opt-in) | Tests that execute code without asserting anything about it. |
 | 7 | CodeQL, weekly plus per-PR | sensor | CI | Security patterns, including in code that has not changed. |
@@ -84,7 +84,7 @@ find the canonical type will declare a local one. Each diff looks reasonable in 
 catches it in review, the merged API spec grows duplicate schemas, and eventually the frontend
 papers over the difference with a chain of null-coalescing operators.
 
-So the wire-contract pack is four rules:
+So the wire-contract pack is five rules:
 
 - Types named `*Request`, `*Response` or `*Dto` must live in the one contract package.
 - No public nested classes inside controllers, which is the fastest way to invent a second shape
@@ -92,8 +92,18 @@ So the wire-contract pack is four rules:
 - Controllers must not return persistence entities **at any generic depth**. A bare `OrderEntity`
   and a `ResponseEntity<Page<OrderEntity>>` leak identically, so the check is a recursive walk over
   the type tree rather than a type comparison.
+- Controllers must not accept them either. The boundary has two directions, and the inbound one is
+  worse: an entity bound from a request body exposes every settable field it has to whatever the
+  caller sent.
 - Event publishers must not accept entities, because an event payload has no compile-time contract
   on the far side and the method signature is the only place the shape can be pinned.
+
+The inbound rule is the newest, and it arrived the way the others did — not from a design session
+but from someone asking what the existing four *could not* see. The return-type rule and the
+publisher rule were written first because those are the leaks that show up in a merged API spec.
+Nothing was watching the parameter side, so `place(@RequestBody OrderEntity body)` passed every gate
+in the pack. Both directions now run through the same recursive type walk, because the leak is the
+same leak.
 
 The layering pack is smaller and more conventional: the domain does not depend on the delivery
 layer, no package cycles, no field injection. Those catch the shortcut an agent takes when the
@@ -148,10 +158,10 @@ noisy gate is disable it.
 This is the part worth reading if you already run coverage gates.
 
 With 100% line coverage and every test green, PIT reported a **79%** mutation score. Seven mutants
-survived, and all seven were the same shape: deleting an individual `check()` call from a `checkAll`
-aggregator changed nothing observable. The aggregate tests asserted that `checkAll` failed on a
-fixture set that violated *several* rules, so removing any one rule still left it failing for the
-other reasons.
+survived in `harness-rules`, and all seven were the same shape: deleting an individual `check()`
+call from a `checkAll` aggregator changed nothing observable. The aggregate tests asserted that
+`checkAll` failed on a fixture set that violated *several* rules, so removing any one rule still
+left it failing for the other reasons.
 
 Read that as a defect and it is a serious one. Every service adopts these packs through `checkAll`.
 A future edit could silently drop the entity-leak rule from the aggregator, every test in the
@@ -160,11 +170,22 @@ repository would stay green, and nineteen services would quietly lose a gate the
 The fix was one delegation test per rule, each against a class set that violates exactly that rule
 and nothing else. Now deleting any single `check()` call turns the suite red.
 
-The ledger service told a related story. Its balance guard could not be tripped by any test, because
-the only posting strategy in the codebase was incapable of producing an unbalanced result. A guard
-no test can trip is decoration. The fix was a seam: the posting strategy became a parameter, so a
-test can inject a broken one and prove the guard actually guards. That is a better design, and
-mutation testing is what asked for it.
+The ledger service told a related story, and it is a third finding rather than a footnote to the
+second, because it could not be fixed with a test. Its balance guard could not be tripped by any
+test, because the only posting strategy in the codebase was incapable of producing an unbalanced
+result — PIT deleted the guard outright and the suite stayed green. A guard no test can trip is
+decoration. The fix was a seam: the posting strategy became a constructor parameter, so a test can
+inject a broken one and prove the guard actually guards. That is a better design, and mutation
+testing is what asked for it.
+
+The seam kept paying out. Once a test could hand the ledger an arbitrary strategy, the guards had to
+be correct against a *hostile* one rather than merely a careless one, and two ways through them
+turned up later: the posting was validated before it was copied, so a list that answered differently
+the second time it was read could ship entries nobody had checked; and because entry amounts were
+signed, a negative debit bought headroom for an oversized one — `[+2000, −1000, credit 1000]`
+balances, sums to the event's 1000, and moves 2000. Both are closed, the second by making an entry
+amount strictly positive so that direction is `Side`'s job alone. Neither would have been reachable,
+let alone testable, before the seam existed.
 
 Both modules now sit at 100% mutation score. The general lesson is the one Böckeler reported from
 the other direction, finding surviving mutants under 100% statement coverage: **line coverage tells
@@ -207,9 +228,16 @@ generalization, the rules' semantics, the invariants, and the review are mine. T
 repository was written the same way the platform was: I specified the invariants and the gates, an
 agent produced candidate implementations, and nothing merged that the gates rejected.
 
-The two findings written up above, the uncovered false-positive path and the seven surviving
-mutants, are both cases where the gates caught something I had not noticed. That is the argument for
-the approach, and it is more convincing than any claim about throughput.
+The findings written up above — the uncovered false-positive path, the seven surviving mutants, and
+the balance guard no test could trip — are all cases where the gates caught something I had not
+noticed. That is the argument for the approach, and it is more convincing than any claim about
+throughput.
+
+The honest extension of that argument is that the gates keep catching things, including after they
+are written up. The inbound entity rule, the two ways through the ledger guards, and a `checkAll`
+adoption that would have passed vacuously on a mistyped package name were all found by pointing the
+same kind of scrutiny at the harness itself rather than at code it was judging. A harness is a
+codebase like any other, and nothing was reviewing it.
 
 ## License
 

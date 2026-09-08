@@ -263,6 +263,12 @@
         <configuration>
           <excludeFilterFile>${maven.multiModuleProjectDirectory}/spotbugs-exclude.xml</excludeFilterFile>
           <effort>Max</effort>
+          <!-- Max effort, medium threshold. Tightening to Low was tried and reverted
+               on 2026-09-08: the Low band reports MC_OVERRIDABLE_METHOD_CALL_IN_CONSTRUCTOR
+               against `this(LedgerService::saleEntries)`, and saleEntries is public
+               STATIC, so it cannot be overridden. Going green would need either an
+               exclusion (a gate change) or production code contorted around a detector
+               bug. See .deep-dive/deferrals.md. -->
           <threshold>Medium</threshold>
           <failOnError>true</failOnError>
           <!-- Explicit, so -Dspotbugs.skip=true cannot turn the gate off. -->
