@@ -10,8 +10,8 @@ import java.util.List;
  * Turns an order event into a balanced posting.
  *
  * <p>The strategy decides which accounts move; {@link #requireBalanced} and {@link #requireAmount}
- * check the value it returned. Changing the strategy cannot produce a posting that is unbalanced,
- * or that moves a different amount than the event carries.
+ * check the immutable copy that ships, taken before either guard runs. Changing the strategy cannot
+ * produce a posting that is unbalanced, or that moves a different amount than the event carries.
  */
 public class LedgerService {
 
@@ -46,17 +46,22 @@ public class LedgerService {
   /**
    * Post an order to the book.
    *
-   * @throws IllegalArgumentException when the event amount is not positive
+   * @throws IllegalArgumentException when the event amount is not positive, or when the strategy
+   *     built an entry that is not a value
    * @throws IllegalStateException when the strategy produced entries that do not balance, or that
    *     move a different amount than the event
    * @throws ArithmeticException when the entries overflow a long, which is refused rather than
    *     wrapped
+   * @throws NullPointerException when the strategy returned null, or a list holding a null entry
    */
   public PostingResponse post(OrderPlacedEvent event) {
     if (event.totalCents() <= 0) {
       throw new IllegalArgumentException("totalCents must be positive");
     }
-    List<EntryResponse> entries = strategy.entriesFor(event);
+    // Copy first, then check the copy. List.copyOf re-reads its argument through toArray(), so
+    // validating the strategy's own list and copying it afterwards checks one reading and ships
+    // another: a list that answers twice, or is mutated in between, passes both guards unchecked.
+    List<EntryResponse> entries = List.copyOf(strategy.entriesFor(event));
     requireBalanced(entries);
     requireAmount(entries, event.totalCents());
     return new PostingResponse(event.orderId(), entries);
@@ -82,6 +87,9 @@ public class LedgerService {
 
   /**
    * A balanced posting that moves the wrong amount, or none, is not a booking of this event.
+   *
+   * <p>Debits are summed unsigned because {@link EntryResponse} refuses a non-positive amount. A
+   * second guard here would be unreachable, and the coverage floor is right to forbid it.
    *
    * @throws IllegalStateException when the debits do not add up to the amount
    */
