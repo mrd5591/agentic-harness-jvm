@@ -9,18 +9,19 @@ import org.junit.jupiter.api.Test;
 /** The whole adoption cost of the rule packs, for one service. */
 class ArchitectureTest {
 
-  private static final JavaClasses CLASSES =
-      WireContractRules.importService("io.harness.sample.order");
+  private static final String BASE = "io.harness.sample.order";
+
+  private static final JavaClasses CLASSES = WireContractRules.importService(BASE);
 
   @Test
   @DisplayName("wire contract holds")
   void wireContractHolds() {
-    WireContractRules.checkAll(CLASSES, "io.harness.sample.order.contract..");
+    WireContractRules.checkAll(CLASSES, BASE);
   }
 
   @Test
   @DisplayName("layering holds")
   void layeringHolds() {
-    LayeringRules.checkAll(CLASSES, "io.harness.sample.order.(*)..");
+    LayeringRules.checkAll(CLASSES, BASE);
   }
 }

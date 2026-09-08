@@ -9,18 +9,19 @@ import org.junit.jupiter.api.Test;
 /** The same two tests as the order service, with one string changed. That is the whole point. */
 class ArchitectureTest {
 
-  private static final JavaClasses CLASSES =
-      WireContractRules.importService("io.harness.sample.ledger");
+  private static final String BASE = "io.harness.sample.ledger";
+
+  private static final JavaClasses CLASSES = WireContractRules.importService(BASE);
 
   @Test
   @DisplayName("wire contract holds")
   void wireContractHolds() {
-    WireContractRules.checkAll(CLASSES, "io.harness.sample.ledger.contract..");
+    WireContractRules.checkAll(CLASSES, BASE);
   }
 
   @Test
   @DisplayName("layering holds")
   void layeringHolds() {
-    LayeringRules.checkAll(CLASSES, "io.harness.sample.ledger.(*)..");
+    LayeringRules.checkAll(CLASSES, BASE);
   }
 }

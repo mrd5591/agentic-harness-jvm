@@ -72,19 +72,19 @@ So the rules are mostly about wire contracts:
   on the far side and the method signature is the only place the shape can be pinned.
 
 The property that makes these worth writing is adoption cost. Each service adopts the whole pack
-with one file and two strings:
+with one file and one string:
 
 ```java
 class ArchitectureTest {
-  private static final JavaClasses CLASSES =
-      WireContractRules.importService("com.example.orders");
+  private static final String BASE = "com.example.orders";
+  private static final JavaClasses CLASSES = WireContractRules.importService(BASE);
 
   @Test void wireContractHolds() {
-    WireContractRules.checkAll(CLASSES, "com.example.orders.contract..");
+    WireContractRules.checkAll(CLASSES, BASE);
   }
 
   @Test void layeringHolds() {
-    LayeringRules.checkAll(CLASSES, "com.example.orders.(*)..");
+    LayeringRules.checkAll(CLASSES, BASE);
   }
 }
 ```
@@ -218,6 +218,6 @@ discussed half is the feedback loop, and on a JVM codebase the build already is 
 This talk frames the Maven build as the harness: guides that shape work silently (formatting),
 sensors that stop it loudly (coverage, architecture, static analysis, mutation), and the ratchet
 pattern that lets a floor rise and never fall. I will show a template where the whole per-service
-adoption cost is one file with two strings, walk through two defects the gates found in their own
+adoption cost is one file with one string, walk through two defects the gates found in their own
 implementation, and argue that the reviewable unit for generated code is the invariant rather than
 the diff.

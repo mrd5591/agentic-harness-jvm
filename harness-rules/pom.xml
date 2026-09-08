@@ -22,15 +22,22 @@
       <groupId>com.tngtech.archunit</groupId>
       <artifactId>archunit</artifactId>
     </dependency>
+    <!-- The rules name Spring and JPA annotations as strings, so production code needs neither.
+         Only the fixtures carry the real annotations; test scope keeps the compiler honest. -->
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-web</artifactId>
-      <scope>provided</scope>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>jakarta.persistence</groupId>
       <artifactId>jakarta.persistence-api</artifactId>
-      <scope>provided</scope>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

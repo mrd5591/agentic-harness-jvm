@@ -2,17 +2,16 @@ package io.harness.arch.fixture.events;
 
 import io.harness.arch.fixture.Fixtures;
 import java.util.List;
+import java.util.function.Consumer;
 
-/** Event publishers for the parameter rule's tests. */
-public final class OrderEventPublisher {
+/** Violation fixture: publishers that let an entity onto the wire. */
+public interface OrderEventPublisher {
 
-  private OrderEventPublisher() {}
-
-  public static void publishClean(Fixtures.OrderResponse payload) {
+  static void publishLeaky(List<Fixtures.OrderEntity> payload) {
     // no-op fixture
   }
 
-  public static void publishLeaky(List<Fixtures.OrderEntity> payload) {
+  static void publishThroughLowerBound(Consumer<? super Fixtures.OrderEntity> sink) {
     // no-op fixture
   }
 }

@@ -19,7 +19,7 @@ fires, are the point.
 mvn verify                    # all gates
 mvn -Pmutation verify         # adds PIT
 mvn -pl harness-rules test    # one module
-mvn -Pmutation verify -pl sample-ledger-service   # one module's mutation score
+mvn -Pmutation verify -pl sample-ledger-service -am   # one module's mutation score, plus what it depends on
 ```
 
 JDK 21. No Docker required.
@@ -42,7 +42,7 @@ These fail the build. Do not attempt to satisfy them by weakening the gate.
 ## Conventions
 
 **Money is a `long` of minor units.** Never `double`, never `float`. If a calculation can overflow,
-use `Math.multiplyExact` and let it throw.
+use `Math.multiplyExact` / `Math.addExact` and let it throw.
 
 **Wire types are records, and they live in the contract package.** One file per service holds them
 (`OrderContracts`, `LedgerContracts`). Never declare a `Request`, `Response`, or `Dto` outside it,
@@ -70,8 +70,8 @@ uncovered line under the coverage gate. An interface with static methods has no 
 ## How to work
 
 **Read the invariant before the code.** For any change touching the ledger, the invariant is that a
-posting balances, and it is checked on the value the strategy returned rather than assumed from the
-strategy's shape. Preserve that property; the implementation underneath is yours to change.
+posting balances and moves the event's amount, and it is checked on the value the strategy returned
+rather than assumed from the strategy's shape. Preserve that property; the implementation underneath is yours to change.
 
 **Run `mvn verify` before reporting done.** Not `mvn test`. The architecture rules, SpotBugs, and
 the coverage check all run in phases that `test` alone does not reach.
@@ -87,7 +87,7 @@ is the trade-off" is a useful message. A green build achieved by weakening a gat
 ## Adding a service
 
 1. Copy a sample module's POM and change the artifact id.
-2. Copy `ArchitectureTest`, change the two package strings.
+2. Copy `ArchitectureTest`, change the one base-package string.
 3. Put wire types in `<service>.contract`, the model in `<service>.domain`, delivery in
    `<service>.api`, publishers in `<service>.events`.
 

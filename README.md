@@ -103,20 +103,20 @@ The whole cost, per service, is one file:
 
 ```java
 class ArchitectureTest {
-  private static final JavaClasses CLASSES =
-      WireContractRules.importService("com.example.orders");
+  private static final String BASE = "com.example.orders";
+  private static final JavaClasses CLASSES = WireContractRules.importService(BASE);
 
   @Test void wireContractHolds() {
-    WireContractRules.checkAll(CLASSES, "com.example.orders.contract..");
+    WireContractRules.checkAll(CLASSES, BASE);
   }
 
   @Test void layeringHolds() {
-    LayeringRules.checkAll(CLASSES, "com.example.orders.(*)..");
+    LayeringRules.checkAll(CLASSES, BASE);
   }
 }
 ```
 
-Copy it into a new module, change two strings. That property is what matters when modules are being
+Copy it into a new module, change one string. That property is what matters when modules are being
 created faster than anyone can review their structure: a rule written once cannot be forgotten in
 module nineteen.
 

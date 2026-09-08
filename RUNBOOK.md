@@ -67,7 +67,7 @@ rule actually fires. A rule you never see fire is a rule you do not know you hav
 implementation that is wrong in an interesting way usually arrives with a test that is wrong in an
 obvious one.
 
-**Run the mutation profile on the modules that changed.** `mvn -Pmutation verify -pl <module>`. This
+**Run the mutation profile on the modules that changed.** `mvn -Pmutation verify -pl <module> -am`. This
 is the check that catches the tests-that-assert-nothing failure, and it is worth the extra minute on
 any change that touched an invariant.
 
