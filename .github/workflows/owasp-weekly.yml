@@ -23,6 +23,30 @@ jobs:
       # Version pinned in the GAV, matching dependency-check.version in the
       # parent POM. Unpinned, this resolves the latest release from Central on
       # every run and a new major can reinterpret failBuildOnCVSS.
+      # The NVD database, which is where essentially all of this job's runtime
+      # goes: dependency-check rebuilds an H2 database from ~390,000 API records
+      # whenever it is absent. The first complete run took 1h06m, of which the
+      # scanning itself was seconds per module.
+      #
+      # It lives in its own directory rather than the default under
+      # ~/.m2/repository, for two reasons. setup-java's `cache: maven` already
+      # covers that tree, so the default path would have two caches writing one
+      # directory. And that cache keys on hashFiles('**/pom.xml'), so every
+      # dependency bump invalidates it and re-downloads the whole NVD database
+      # -- a cache that misses precisely when the build changes, which is the
+      # only time this job runs on a push.
+      #
+      # The key rolls each run so the freshest database is always written back,
+      # and restore-keys falls back to the most recent one. A database a week
+      # stale is not a correctness problem: the plugin checks its own age and
+      # updates incrementally on top of whatever it restores.
+      - name: Cache the NVD database
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.dependency-check-data
+          key: dependency-check-data-${{ github.run_id }}
+          restore-keys: dependency-check-data-
+
       # `package` first, in the same reactor session. sample-ledger-service
       # depends on sample-order-service, and a bare plugin goal builds nothing,
       # so the inter-module SNAPSHOT cannot resolve and the ledger module fails
@@ -35,6 +59,7 @@ jobs:
           -DfailBuildOnCVSS=7
           -DassemblyAnalyzerEnabled=false
           -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
+          -DdataDirectory=${{ github.workspace }}/.dependency-check-data
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
 
