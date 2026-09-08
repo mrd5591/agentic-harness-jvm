@@ -74,6 +74,29 @@ first, then lock the door behind you.
 
 A floor you lower under deadline pressure is not a gate. It is a suggestion with extra steps.
 
+### Why these rules and not others
+
+The expensive recurring failure in a multi-service codebase built this way is not a wrong
+algorithm. It is one concept acquiring three shapes in three services, because an agent that cannot
+find the canonical type will declare a local one. Each diff looks reasonable in isolation, nobody
+catches it in review, the merged API spec grows duplicate schemas, and eventually the frontend
+papers over the difference with a chain of null-coalescing operators.
+
+So the wire-contract pack is four rules:
+
+- Types named `*Request`, `*Response` or `*Dto` must live in the one contract package.
+- No public nested classes inside controllers, which is the fastest way to invent a second shape
+  for a concept that already has one.
+- Controllers must not return persistence entities **at any generic depth**. A bare `OrderEntity`
+  and a `ResponseEntity<Page<OrderEntity>>` leak identically, so the check is a recursive walk over
+  the type tree rather than a type comparison.
+- Event publishers must not accept entities, because an event payload has no compile-time contract
+  on the far side and the method signature is the only place the shape can be pinned.
+
+The layering pack is smaller and more conventional: the domain does not depend on the delivery
+layer, no package cycles, no field injection. Those catch the shortcut an agent takes when the
+cheapest import is the one that inverts a dependency.
+
 ### Adopting the architecture rules
 
 The whole cost, per service, is one file:
