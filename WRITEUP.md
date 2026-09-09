@@ -1,7 +1,7 @@
 # Draft: "100% coverage told me nothing. The mutation score told me my gates were fake."
 
 *Draft blog post. Target: personal blog, then Hacker News and the Claude Code community. ~2,000
-words. Talk abstracts at the end.*
+words. Three framings of the same work at the end.*
 
 ---
 
@@ -175,49 +175,46 @@ the only way to know a gate works.
 
 ---
 
-# Talk abstracts
+# Three ways to frame this work
 
-## 1. Philadelphia / NYC JUG, 30 minutes
+The same repository makes three different arguments depending on who is reading it, and choosing the
+frame is most of the work of explaining it. All three are written out here.
 
-**Title:** Harness engineering for a JVM monorepo: what 100% coverage does not tell you
+## 1. Harness engineering for a JVM monorepo: what 100% coverage does not tell you
 
-**Abstract:** I built an 18-service Java platform by directing a coding agent behind a build that
-enforces 100% line coverage per package, ArchUnit rules in every module, and static analysis at max
-effort. Then I ran mutation testing on the extracted template and scored 79%, because an aggregator
-could silently drop a rule and no test noticed.
+I built an 18-service Java platform by directing a coding agent behind a build that enforces 100%
+line coverage per package, ArchUnit rules in every module, and static analysis at max effort. Then I
+ran mutation testing on the extracted template and scored 79%, because an aggregator could silently
+drop a rule and no test noticed.
 
-This talk is the practical version of that story. We will look at the actual gate configuration
-(JaCoCo ratchet, ArchUnit rule packs adopted per service in one file, Spotless as a guide rather
-than a sensor), the two findings that only appeared under mutation testing, and the design changes a
-100% floor forces, including why both rule packs are interfaces rather than utility classes.
+The practical version of that story is the gate configuration itself: the JaCoCo ratchet, ArchUnit
+rule packs adopted per service in one file, Spotless as a guide rather than a sensor, the two
+findings that only appeared under mutation testing, and the design changes a 100% floor forces —
+including why both rule packs are interfaces rather than utility classes.
 
-You will leave with a runnable template and a clear sense of which gates are worth their cost.
-Suitable for anyone maintaining a multi-module JVM codebase, whether or not agents are involved.
+What it leaves you with is a runnable template and a clear sense of which gates are worth their
+cost. It holds for anyone maintaining a multi-module JVM codebase, whether or not agents are
+involved.
 
-## 2. Fintech and testing meetups, 25 minutes
+## 2. Invariants over implementations: gating money code an agent wrote
 
-**Title:** Invariants over implementations: gating money code an agent wrote
+When the implementation is cheap to regenerate, the durable artifact is the invariant. A posting
+balances. Money is a long of minor units. An entity never crosses the wire.
 
-**Abstract:** When the implementation is cheap to regenerate, the durable artifact is the invariant.
-A posting balances. Money is a long of minor units. An entity never crosses the wire.
+With a double-entry ledger as the worked example: how to express invariants so a build can enforce
+them on the *value* rather than on the code shape that produced it, why that distinction is what
+makes generated code reviewable, and how mutation testing revealed that the balance guard could not
+be tripped by any test we had. Property-style tests over example-based ones, exact-message
+assertions and the sign errors that substring assertions hide, and the seam that made an unreachable
+guard testable.
 
-Using a double-entry ledger as the worked example, this talk shows how to express invariants so a
-build can enforce them on the *value* rather than on the code shape that produced it, why that
-distinction is what makes generated code reviewable, and how mutation testing revealed that our
-balance guard could not be tripped by any test we had. We will cover property-style tests over
-example-based ones, exact-message assertions and the sign errors that substring assertions hide, and
-the seam that made an unreachable guard testable.
+## 3. The build as the harness: quality gates as the contract between humans and agents
 
-## 3. Durable-execution and platform communities, 20 minutes
+Agent harness conversations usually focus on tools, memory, and context. The less discussed half is
+the feedback loop, and on a JVM codebase the build already is one.
 
-**Title:** The build as the harness: quality gates as the contract between humans and agents
-
-**Abstract:** Agent harness conversations usually focus on tools, memory, and context. The less
-discussed half is the feedback loop, and on a JVM codebase the build already is one.
-
-This talk frames the Maven build as the harness: guides that shape work silently (formatting),
-sensors that stop it loudly (coverage, architecture, static analysis, mutation), and the ratchet
-pattern that lets a floor rise and never fall. I will show a template where the whole per-service
-adoption cost is one file with one string, walk through two defects the gates found in their own
-implementation, and argue that the reviewable unit for generated code is the invariant rather than
-the diff.
+The Maven build is the harness: guides that shape work silently (formatting), sensors that stop it
+loudly (coverage, architecture, static analysis, mutation), and the ratchet pattern that lets a
+floor rise and never fall. The template's whole per-service adoption cost is one file with one
+string; two defects the gates found in their own implementation show what that buys; and the
+conclusion is that the reviewable unit for generated code is the invariant rather than the diff.
